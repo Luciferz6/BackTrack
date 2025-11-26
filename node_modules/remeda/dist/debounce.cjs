@@ -1,0 +1,1 @@
+const e=require(`./debounce-DWSyavfX.cjs`);exports.debounce=e.debounce;

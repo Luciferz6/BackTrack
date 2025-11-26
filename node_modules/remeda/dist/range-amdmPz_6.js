@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";function t(...t){return e(n,t)}function n(e,t){let n=[];for(let r=e;r<t;r++)n.push(r);return n}export{t as range};
+//# sourceMappingURL=range-amdmPz_6.js.map

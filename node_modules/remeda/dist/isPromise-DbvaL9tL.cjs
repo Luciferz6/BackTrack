@@ -1,0 +1,1 @@
+function e(e){return e instanceof Promise}Object.defineProperty(exports,`isPromise`,{enumerable:!0,get:function(){return e}});

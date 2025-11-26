@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./binarySearchCutoffIndex-DEUMiOoK.cjs`);function n(...t){return e.purry(r,t)}function r(e,n,r){let i=r(n,void 0,e);return t.binarySearchCutoffIndex(e,(t,n)=>r(t,n,e)<i)}Object.defineProperty(exports,`sortedIndexBy`,{enumerable:!0,get:function(){return n}});

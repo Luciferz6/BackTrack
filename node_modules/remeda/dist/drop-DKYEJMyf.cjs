@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./utilityEvaluators-miOCx8eb.cjs`);function n(...t){return e.purry(r,t,i)}const r=(e,t)=>t<0?[...e]:e.slice(t);function i(e){if(e<=0)return t.lazyIdentityEvaluator;let n=e;return e=>n>0?(--n,t.SKIP_ITEM):{done:!1,hasNext:!0,next:e}}Object.defineProperty(exports,`drop`,{enumerable:!0,get:function(){return n}});

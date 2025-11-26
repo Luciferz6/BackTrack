@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>{let n=e.entries(),r=n.next();if(`done`in r&&r.done)return 0;let{value:[,i]}=r,a=t(i,0,e);for(let[r,i]of n){let n=t(i,r,e);a+=n}return a};Object.defineProperty(exports,`sumBy`,{enumerable:!0,get:function(){return t}});

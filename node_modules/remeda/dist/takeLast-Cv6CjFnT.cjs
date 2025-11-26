@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>t>0?e.slice(Math.max(0,e.length-t)):[];Object.defineProperty(exports,`takeLast`,{enumerable:!0,get:function(){return t}});

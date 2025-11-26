@@ -1,0 +1,1 @@
+const e=require(`./isPromise-DbvaL9tL.cjs`);exports.isPromise=e.isPromise;

@@ -1,0 +1,1 @@
+const e=require(`./pipe-BzExDwtE.cjs`);function t(...t){return n=>e.pipe(n,...t)}Object.defineProperty(exports,`piped`,{enumerable:!0,get:function(){return t}});

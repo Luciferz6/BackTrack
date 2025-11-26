@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,{min:t,max:n})=>t!==void 0&&e<t?t:n!==void 0&&e>n?n:e;Object.defineProperty(exports,`clamp`,{enumerable:!0,get:function(){return t}});

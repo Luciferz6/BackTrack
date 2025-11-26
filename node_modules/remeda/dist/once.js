@@ -1,0 +1,1 @@
+import{once as e}from"./once-kntrPHEB.js";export{e as once};

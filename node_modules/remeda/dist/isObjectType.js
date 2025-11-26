@@ -1,0 +1,1 @@
+import{isObjectType as e}from"./isObjectType-DNvNtCZj.js";export{e as isObjectType};

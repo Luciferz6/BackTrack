@@ -1,0 +1,1 @@
+function e(e){return e instanceof Date}Object.defineProperty(exports,`isDate`,{enumerable:!0,get:function(){return e}});

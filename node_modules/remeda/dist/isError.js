@@ -1,0 +1,1 @@
+import{isError as e}from"./isError-B7nJM5NX.js";export{e as isError};

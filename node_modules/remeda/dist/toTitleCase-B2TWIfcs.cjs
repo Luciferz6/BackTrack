@@ -1,0 +1,1 @@
+const e=require(`./words-B39hfVL5.cjs`),t=/[a-z]/u,n=!0;function r(e,t){return typeof e==`string`?i(e,t):t=>i(t,e)}const i=(n,{preserveConsecutiveUppercase:r=!0}={})=>e.words(t.test(n)?n:n.toLowerCase()).map(e=>`${e[0]?.toUpperCase()??``}${r?e.slice(1):e.slice(1).toLowerCase()}`).join(` `);Object.defineProperty(exports,`toTitleCase`,{enumerable:!0,get:function(){return r}});

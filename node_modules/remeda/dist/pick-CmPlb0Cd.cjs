@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t){let n={};for(let r of t)r in e&&(n[r]=e[r]);return n}Object.defineProperty(exports,`pick`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";function t(...t){return e(n,t)}const n=(e,t)=>{let n=[[],[]];for(let[r,i]of e.entries())t(i,r,e)?n[0].push(i):n[1].push(i);return n};export{t as partition};
+//# sourceMappingURL=partition-DAu403JQ.js.map

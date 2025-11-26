@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{toSingle as t}from"./toSingle-Bfpp5_i-.js";function n(...n){return e(r,n,t(i))}const r=([e])=>e,i=()=>a,a=e=>({hasNext:!0,next:e,done:!0});export{n as first};
+//# sourceMappingURL=first-1mSmk2BJ.js.map

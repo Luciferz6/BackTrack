@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";function t(...t){return e(n,t)}const n=e=>`${e[0]?.toLowerCase()??``}${e.slice(1)}`;export{t as uncapitalize};
+//# sourceMappingURL=uncapitalize-D44y9jWv.js.map

@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t,r)}const n=(e,t)=>e.length<t.length?e.map((e,n)=>[e,t[n]]):t.map((t,n)=>[e[n],t]),r=e=>(t,n)=>({hasNext:!0,next:[t,e[n]],done:n>=e.length-1});Object.defineProperty(exports,`zip`,{enumerable:!0,get:function(){return t}});

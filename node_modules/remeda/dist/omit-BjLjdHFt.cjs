@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./hasAtLeast-oVfN2rdd.cjs`);function n(...t){return e.purry(r,t)}function r(e,n){if(!t.hasAtLeast(n,1))return{...e};if(!t.hasAtLeast(n,2)){let{[n[0]]:t,...r}=e;return r}let r={...e};for(let e of n)delete r[e];return r}Object.defineProperty(exports,`omit`,{enumerable:!0,get:function(){return n}});

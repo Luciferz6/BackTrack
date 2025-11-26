@@ -1,0 +1,1 @@
+function e(e){return typeof e==`number`&&!Number.isNaN(e)}Object.defineProperty(exports,`isNumber`,{enumerable:!0,get:function(){return e}});

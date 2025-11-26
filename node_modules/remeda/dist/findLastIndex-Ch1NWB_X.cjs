@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>{for(let n=e.length-1;n>=0;n--)if(t(e[n],n,e))return n;return-1};Object.defineProperty(exports,`findLastIndex`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>{let n=new Map;for(let[r,i]of e.entries()){let a=t(i,r,e);if(a!==void 0){let e=n.get(a);e===void 0?n.set(a,1):n.set(a,e+1)}}return Object.fromEntries(n)};Object.defineProperty(exports,`countBy`,{enumerable:!0,get:function(){return t}});

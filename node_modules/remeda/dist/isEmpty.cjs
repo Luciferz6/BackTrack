@@ -1,0 +1,1 @@
+const e=require(`./isEmpty-6_LyBGoT.cjs`);exports.isEmpty=e.isEmpty;

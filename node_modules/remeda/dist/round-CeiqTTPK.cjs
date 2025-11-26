@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./withPrecision-cr1Rb9ya.cjs`);function n(...n){return e.purry(t.withPrecision(Math.round),n)}Object.defineProperty(exports,`round`,{enumerable:!0,get:function(){return n}});

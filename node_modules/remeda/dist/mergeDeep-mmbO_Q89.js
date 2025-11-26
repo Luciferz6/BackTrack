@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{isPlainObject as t}from"./isPlainObject-Crc4dM9-.js";function n(...t){return e(r,t)}function r(e,n){let i={...e,...n};for(let a in n){if(!(a in e))continue;let{[a]:o}=e;if(!t(o))continue;let{[a]:s}=n;if(!t(s))continue;i[a]=r(o,s)}return i}export{n as mergeDeep};
+//# sourceMappingURL=mergeDeep-mmbO_Q89.js.map

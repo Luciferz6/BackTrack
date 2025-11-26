@@ -1,0 +1,1 @@
+import{isBigInt as e}from"./isBigInt-BzTTAS-n.js";export{e as isBigInt};

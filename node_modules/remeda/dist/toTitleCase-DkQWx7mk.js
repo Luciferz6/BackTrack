@@ -1,0 +1,2 @@
+import{words as e}from"./words-Cyt_9v5M.js";const t=/[a-z]/u;function n(e,t){return typeof e==`string`?r(e,t):t=>r(t,e)}const r=(n,{preserveConsecutiveUppercase:r=!0}={})=>e(t.test(n)?n:n.toLowerCase()).map(e=>`${e[0]?.toUpperCase()??``}${r?e.slice(1):e.slice(1).toLowerCase()}`).join(` `);export{n as toTitleCase};
+//# sourceMappingURL=toTitleCase-DkQWx7mk.js.map

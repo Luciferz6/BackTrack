@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{withPrecision as t}from"./withPrecision-D4S0Kwr9.js";function n(...n){return e(t(Math.ceil),n)}export{n as ceil};
+//# sourceMappingURL=ceil-wIMhyDDI.js.map

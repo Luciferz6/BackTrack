@@ -1,0 +1,2 @@
+import{purryOrderRulesWithArgument as e}from"./purryOrderRules-CfRtTEyM.js";function t(...t){return e(n,t)}function n(e,t,n){let r=0;for(let i of e)t(n,i)>0&&(r+=1);return r}export{t as rankBy};
+//# sourceMappingURL=rankBy-BLqU_Khl.js.map

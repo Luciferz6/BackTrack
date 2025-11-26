@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";function t(...t){return e(n,t)}function n(e,t){let n={...e};for(let[r,i]of Object.entries(n))t(i,r,e)&&delete n[r];return n}export{t as omitBy};
+//# sourceMappingURL=omitBy-CgV9CAW2.js.map

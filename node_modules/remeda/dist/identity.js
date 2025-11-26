@@ -1,0 +1,1 @@
+import{identity as e}from"./identity-CdMenAq7.js";export{e as identity};

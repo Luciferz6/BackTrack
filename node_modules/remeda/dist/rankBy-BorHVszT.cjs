@@ -1,0 +1,1 @@
+const e=require(`./purryOrderRules-BygASFbe.cjs`);function t(...t){return e.purryOrderRulesWithArgument(n,t)}function n(e,t,n){let r=0;for(let i of e)t(n,i)>0&&(r+=1);return r}Object.defineProperty(exports,`rankBy`,{enumerable:!0,get:function(){return t}});

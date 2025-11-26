@@ -1,0 +1,1 @@
+const e=require(`./hasAtLeast-oVfN2rdd.cjs`),t=require(`./purryOrderRules-BygASFbe.cjs`);function n(...e){return t.purryOrderRules(r,e)}function r(t,n){if(!e.hasAtLeast(t,2))return t[0];let[r]=t,[,...i]=t;for(let e of i)n(e,r)<0&&(r=e);return r}Object.defineProperty(exports,`firstBy`,{enumerable:!0,get:function(){return n}});

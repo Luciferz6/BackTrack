@@ -1,0 +1,1 @@
+const e=require(`./prop-CRL-gKBU.cjs`);exports.prop=e.prop;

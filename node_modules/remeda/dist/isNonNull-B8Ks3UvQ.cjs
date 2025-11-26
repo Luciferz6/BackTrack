@@ -1,0 +1,1 @@
+function e(e){return e!==null}Object.defineProperty(exports,`isNonNull`,{enumerable:!0,get:function(){return e}});

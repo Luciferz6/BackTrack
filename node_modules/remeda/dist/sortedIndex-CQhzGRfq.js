@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{binarySearchCutoffIndex as t}from"./binarySearchCutoffIndex-CeJltMp9.js";function n(...t){return e(r,t)}const r=(e,n)=>t(e,e=>e<n);export{n as sortedIndex};
+//# sourceMappingURL=sortedIndex-CQhzGRfq.js.map

@@ -1,0 +1,1 @@
+import{isEmptyish as e}from"./isEmptyish-uIGYrS1r.js";export{e as isEmptyish};

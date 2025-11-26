@@ -1,0 +1,1 @@
+require(`./lazyDataLastImpl-ClWpFgA_.cjs`),require(`./purry-CxXxOfsx.cjs`);const e=require(`./fromEntries-UGISuX2p.cjs`);exports.fromEntries=e.fromEntries;

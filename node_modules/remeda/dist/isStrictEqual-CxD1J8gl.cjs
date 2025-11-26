@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>e===t||Object.is(e,t);Object.defineProperty(exports,`isStrictEqual`,{enumerable:!0,get:function(){return t}});

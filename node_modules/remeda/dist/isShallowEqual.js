@@ -1,0 +1,1 @@
+import"./lazyDataLastImpl-BDhrIOwR.js";import"./purry-DH9cw9sy.js";import{isShallowEqual as e}from"./isShallowEqual-B8ugYLnO.js";export{e as isShallowEqual};

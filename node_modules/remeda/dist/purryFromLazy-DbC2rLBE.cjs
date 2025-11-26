@@ -1,0 +1,1 @@
+const e=require(`./pipe-BzExDwtE.cjs`);function t(t,n){let r=n.length-t.length;if(r===1){let[r,...i]=n;return e.pipe(r,{lazy:t,lazyArgs:i})}if(r===0){let r={lazy:t,lazyArgs:n};return Object.assign(t=>e.pipe(t,r),r)}throw Error(`Wrong number of arguments`)}Object.defineProperty(exports,`purryFromLazy`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>t.some(t=>t(e));Object.defineProperty(exports,`anyPass`,{enumerable:!0,get:function(){return t}});

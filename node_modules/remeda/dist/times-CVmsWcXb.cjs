@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t){if(e<1)return[];let n=Number.isInteger(e)?e:Math.floor(e),r=Array(n);for(let e=0;e<n;e++)r[e]=t(e);return r}Object.defineProperty(exports,`times`,{enumerable:!0,get:function(){return t}});

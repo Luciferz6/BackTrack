@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t){for(let[n,r]of e.entries())if(!t(r,n,e))return e.slice(n);return[]}Object.defineProperty(exports,`dropWhile`,{enumerable:!0,get:function(){return t}});

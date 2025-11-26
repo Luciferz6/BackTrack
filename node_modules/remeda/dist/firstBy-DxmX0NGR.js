@@ -1,0 +1,2 @@
+import{hasAtLeast as e}from"./hasAtLeast-F1Oj_xBB.js";import{purryOrderRules as t}from"./purryOrderRules-CfRtTEyM.js";function n(...e){return t(r,e)}function r(t,n){if(!e(t,2))return t[0];let[r]=t,[,...i]=t;for(let e of i)n(e,r)<0&&(r=e);return r}export{n as firstBy};
+//# sourceMappingURL=firstBy-DxmX0NGR.js.map

@@ -1,0 +1,1 @@
+const e=require(`./lazyDataLastImpl-ClWpFgA_.cjs`);function t(t,n,r){let i=t.length-n.length;if(i===0)return t(...n);if(i===1)return e.lazyDataLastImpl(t,n,r);throw Error(`Wrong number of arguments`)}Object.defineProperty(exports,`purry`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,2 @@
+const e=e=>(n,r)=>{if(r===0)return e(n);if(!Number.isInteger(r))throw TypeError(`precision must be an integer: ${r.toString()}`);if(r>15||r<-15)throw RangeError(`precision must be between -15 and 15`);if(Number.isNaN(n)||!Number.isFinite(n))return e(n);let i=t(n,r),a=e(i);return t(a,-r)};function t(e,t){let[n,r]=e.toString().split(`e`),i=(r===void 0?0:Number.parseInt(r,10))+t,a=`${n}e${i.toString()}`;return Number.parseFloat(a)}export{e as withPrecision};
+//# sourceMappingURL=withPrecision-D4S0Kwr9.js.map

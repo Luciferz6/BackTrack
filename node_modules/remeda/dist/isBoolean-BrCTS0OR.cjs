@@ -1,0 +1,1 @@
+function e(e){return typeof e==`boolean`}Object.defineProperty(exports,`isBoolean`,{enumerable:!0,get:function(){return e}});

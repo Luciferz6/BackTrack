@@ -1,0 +1,1 @@
+import{prop as e}from"./prop-Cv_AVBuA.js";export{e as prop};

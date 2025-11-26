@@ -1,0 +1,1 @@
+const e=require(`./purryFromLazy-DbC2rLBE.cjs`);function t(...t){return e.purryFromLazy(n,t)}const n=(e,t)=>{let n=t;return(t,r,i)=>(n=e(n,t,r,i),{done:!1,hasNext:!0,next:n})};Object.defineProperty(exports,`mapWithFeedback`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t,n){let{[t]:r,[n]:i}=e;return{...e,[t]:i,[n]:r}}Object.defineProperty(exports,`swapProps`,{enumerable:!0,get:function(){return t}});

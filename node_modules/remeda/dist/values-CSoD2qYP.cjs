@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(Object.values,t)}Object.defineProperty(exports,`values`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,1 @@
+function e(e){return e==null}Object.defineProperty(exports,`isNullish`,{enumerable:!0,get:function(){return e}});

@@ -1,0 +1,1 @@
+import{isDate as e}from"./isDate-B1WLIU_h.js";export{e as isDate};

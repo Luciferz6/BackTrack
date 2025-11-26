@@ -1,0 +1,1 @@
+const e=e=>typeof e==`function`;Object.defineProperty(exports,`isFunction`,{enumerable:!0,get:function(){return e}});

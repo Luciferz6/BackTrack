@@ -1,0 +1,2 @@
+import{SKIP_ITEM as e,lazyIdentityEvaluator as t}from"./utilityEvaluators-DORpnx39.js";import{purryFromLazy as n}from"./purryFromLazy-3oywCNIb.js";function r(...e){return n(i,e)}function i(n){if(n.length===0)return t;let r=new Map;for(let e of n)r.set(e,(r.get(e)??0)+1);return t=>{let n=r.get(t);return n===void 0||n===0?{done:!1,hasNext:!0,next:t}:(r.set(t,n-1),e)}}export{r as difference};
+//# sourceMappingURL=difference-DxYg8_zs.js.map

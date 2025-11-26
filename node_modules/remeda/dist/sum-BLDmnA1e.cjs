@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e){let t=typeof e[0]==`bigint`?0n:0;for(let n of e)t+=n;return t}Object.defineProperty(exports,`sum`,{enumerable:!0,get:function(){return t}});

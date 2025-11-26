@@ -1,0 +1,1 @@
+const e=require(`./split-CHg_UeMY.cjs`);exports.split=e.split;

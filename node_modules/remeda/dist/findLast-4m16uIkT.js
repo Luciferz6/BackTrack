@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";function t(...t){return e(n,t)}const n=(e,t)=>{for(let n=e.length-1;n>=0;n--){let r=e[n];if(t(r,n,e))return r}};export{t as findLast};
+//# sourceMappingURL=findLast-4m16uIkT.js.map

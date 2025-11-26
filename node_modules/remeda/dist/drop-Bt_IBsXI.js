@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{SKIP_ITEM as t,lazyIdentityEvaluator as n}from"./utilityEvaluators-DORpnx39.js";function r(...t){return e(i,t,a)}const i=(e,t)=>t<0?[...e]:e.slice(t);function a(e){if(e<=0)return n;let r=e;return e=>r>0?(--r,t):{done:!1,hasNext:!0,next:e}}export{r as drop};
+//# sourceMappingURL=drop-Bt_IBsXI.js.map

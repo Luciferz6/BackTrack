@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./sum-BLDmnA1e.cjs`);function n(...t){return e.purry(r,t)}function r(e){if(e.length!==0)return t.sum(e)/e.length}Object.defineProperty(exports,`mean`,{enumerable:!0,get:function(){return n}});

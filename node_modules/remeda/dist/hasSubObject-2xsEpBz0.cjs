@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./isDeepEqual-ByIShXvE.cjs`);function n(...t){return e.purry(r,t)}function r(e,n){for(let[r,i]of Object.entries(n))if(!Object.hasOwn(e,r)||!t.isDeepEqual(i,e[r]))return!1;return!0}Object.defineProperty(exports,`hasSubObject`,{enumerable:!0,get:function(){return n}});

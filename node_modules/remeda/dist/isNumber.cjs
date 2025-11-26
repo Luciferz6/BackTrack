@@ -1,0 +1,1 @@
+const e=require(`./isNumber-CG-UJuJ9.cjs`);exports.isNumber=e.isNumber;

@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{withPrecision as t}from"./withPrecision-D4S0Kwr9.js";function n(...n){return e(t(Math.round),n)}export{n as round};
+//# sourceMappingURL=round-DcwvM4Um.js.map

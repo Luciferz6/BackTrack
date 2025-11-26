@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>{if(e.length===0)return NaN;let n=0;for(let[r,i]of e.entries())n+=t(i,r,e);return n/e.length};Object.defineProperty(exports,`meanBy`,{enumerable:!0,get:function(){return t}});

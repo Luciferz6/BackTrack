@@ -1,0 +1,108 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id               String     @id @default(uuid())
+  nomeCompleto     String
+  email            String     @unique
+  senha            String
+  membroDesde      DateTime   @default(now())
+  statusConta      String     @default("Ativa")
+  planoId          String
+  telegramId       String?
+  telegramUsername String?
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  bancas           Bankroll[]
+  tipsters         Tipster[]
+  plano            Plan       @relation(fields: [planoId], references: [id])
+
+  @@map("users")
+}
+
+model Plan {
+  id                   String   @id @default(uuid())
+  nome                 String   @unique
+  preco                Float    @default(0)
+  limiteApostasDiarias Int      @default(0)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  usuarios             User[]
+
+  @@map("plans")
+}
+
+model Bankroll {
+  id         String                 @id @default(uuid())
+  usuarioId  String
+  nome       String
+  descricao  String?
+  cor        String?                @default("#2563eb")
+  status     String                 @default("Ativa")
+  ePadrao    Boolean                @default(false)
+  criadoEm   DateTime               @default(now())
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+  usuario    User                   @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  apostas    Bet[]
+  transacoes FinancialTransaction[]
+
+  @@map("bankrolls")
+}
+
+model FinancialTransaction {
+  id            String   @id @default(uuid())
+  bancaId       String
+  tipo          String
+  casaDeAposta  String
+  valor         Float
+  dataTransacao DateTime @default(now())
+  observacao    String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  banca         Bankroll @relation(fields: [bancaId], references: [id], onDelete: Cascade)
+
+  @@map("financial_transactions")
+}
+
+model Bet {
+  id            String   @id @default(uuid())
+  bancaId       String
+  esporte       String
+  jogo          String
+  torneio       String?
+  pais          String?
+  mercado       String
+  tipoAposta    String
+  valorApostado Float
+  odd           Float
+  bonus         Float    @default(0)
+  dataJogo      DateTime
+  tipster       String?
+  status        String   @default("Pendente")
+  casaDeAposta  String
+  retornoObtido Float?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  banca         Bankroll @relation(fields: [bancaId], references: [id], onDelete: Cascade)
+
+  @@map("bets")
+}
+
+model Tipster {
+  id        String   @id @default(uuid())
+  usuarioId String
+  nome      String
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  usuario   User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+
+  @@unique([usuarioId, nome])
+  @@map("tipsters")
+}

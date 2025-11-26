@@ -1,0 +1,1 @@
+import{isPromise as e}from"./isPromise-APPd_fLV.js";export{e as isPromise};

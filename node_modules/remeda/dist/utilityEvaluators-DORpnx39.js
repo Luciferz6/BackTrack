@@ -1,0 +1,2 @@
+const e={done:!0,hasNext:!1},t={done:!1,hasNext:!1},n=()=>e,r=e=>({hasNext:!0,next:e,done:!1});export{t as SKIP_ITEM,n as lazyEmptyEvaluator,r as lazyIdentityEvaluator};
+//# sourceMappingURL=utilityEvaluators-DORpnx39.js.map

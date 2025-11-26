@@ -1,0 +1,2 @@
+import{purry as e}from"./purry-DH9cw9sy.js";import{isDeepEqual as t}from"./isDeepEqual-jLo35Woq.js";function n(...t){return e(r,t)}function r(e,n){for(let[r,i]of Object.entries(n))if(!Object.hasOwn(e,r)||!t(i,e[r]))return!1;return!0}export{n as hasSubObject};
+//# sourceMappingURL=hasSubObject-CmoqEi7Y.js.map

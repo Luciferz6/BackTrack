@@ -1,0 +1,1 @@
+const e={done:!0,hasNext:!1},t={done:!1,hasNext:!1},n=()=>e,r=e=>({hasNext:!0,next:e,done:!1});Object.defineProperty(exports,`SKIP_ITEM`,{enumerable:!0,get:function(){return t}}),Object.defineProperty(exports,`lazyEmptyEvaluator`,{enumerable:!0,get:function(){return n}}),Object.defineProperty(exports,`lazyIdentityEvaluator`,{enumerable:!0,get:function(){return r}});

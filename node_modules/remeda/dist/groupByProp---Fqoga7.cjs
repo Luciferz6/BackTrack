@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t){let n=Object.create(null);for(let r of e){let e=r?.[t];if(e!==void 0){let t=n[e];t===void 0?n[e]=[r]:t.push(r)}}return Object.setPrototypeOf(n,Object.prototype),n}Object.defineProperty(exports,`groupByProp`,{enumerable:!0,get:function(){return t}});

@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t){let n=e.findIndex(t);return n===-1?[[...e],[]]:[e.slice(0,n),e.slice(n)]}Object.defineProperty(exports,`splitWhen`,{enumerable:!0,get:function(){return t}});

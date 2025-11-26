@@ -1,0 +1,1 @@
+function e(e,...t){return(...n)=>e(...t,...n)}Object.defineProperty(exports,`partialBind`,{enumerable:!0,get:function(){return e}});

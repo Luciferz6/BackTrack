@@ -1,0 +1,1 @@
+const e=require(`./funnel-CJuZ3Hpv.cjs`);exports.funnel=e.funnel;

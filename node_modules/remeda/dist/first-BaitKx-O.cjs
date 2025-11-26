@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./toSingle-Cpe58dEU.cjs`);function n(...n){return e.purry(r,n,t.toSingle(i))}const r=([e])=>e,i=()=>a,a=e=>({hasNext:!0,next:e,done:!0});Object.defineProperty(exports,`first`,{enumerable:!0,get:function(){return n}});

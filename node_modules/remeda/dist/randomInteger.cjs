@@ -1,0 +1,1 @@
+const e=require(`./randomInteger-AFW30PoR.cjs`);exports.randomInteger=e.randomInteger;

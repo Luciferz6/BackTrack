@@ -1,0 +1,1 @@
+import{split as e}from"./split-DJnBKW9T.js";export{e as split};

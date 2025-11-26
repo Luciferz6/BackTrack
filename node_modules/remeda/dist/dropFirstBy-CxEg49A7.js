@@ -1,0 +1,2 @@
+import{heapMaybeInsert as e,heapify as t}from"./heap-Gww6bokq.js";import{purryOrderRulesWithArgument as n}from"./purryOrderRules-CfRtTEyM.js";function r(...e){return n(i,e)}function i(n,r,i){if(i>=n.length)return[];if(i<=0)return[...n];let a=n.slice(0,i);t(a,r);let o=[],s=n.slice(i);for(let t of s){let n=e(a,r,t);o.push(n??t)}return o}export{r as dropFirstBy};
+//# sourceMappingURL=dropFirstBy-CxEg49A7.js.map

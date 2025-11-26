@@ -1,0 +1,1 @@
+function e(e){return typeof e==`string`}Object.defineProperty(exports,`isString`,{enumerable:!0,get:function(){return e}});

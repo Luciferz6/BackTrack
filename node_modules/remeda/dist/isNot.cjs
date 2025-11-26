@@ -1,0 +1,1 @@
+const e=require(`./isNot-ttfZ85o5.cjs`);exports.isNot=e.isNot;

@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./words-B39hfVL5.cjs`);function n(...t){return e.purry(r,t)}const r=e=>t.words(e).join(`-`).toLowerCase();Object.defineProperty(exports,`toKebabCase`,{enumerable:!0,get:function(){return n}});

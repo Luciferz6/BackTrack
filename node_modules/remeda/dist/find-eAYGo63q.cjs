@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./utilityEvaluators-miOCx8eb.cjs`),n=require(`./toSingle-Cpe58dEU.cjs`);function r(...t){return e.purry(i,t,n.toSingle(a))}const i=(e,t)=>e.find(t),a=e=>(n,r,i)=>e(n,r,i)?{done:!0,hasNext:!0,next:n}:t.SKIP_ITEM;Object.defineProperty(exports,`find`,{enumerable:!0,get:function(){return r}});

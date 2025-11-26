@@ -1,0 +1,21 @@
+import { NarrowedTo } from "./NarrowedTo-DEGJVZVq.cjs";
+
+//#region src/isArray.d.ts
+
+/**
+ * A function that checks if the passed parameter is an Array and narrows its type accordingly.
+ *
+ * @param data - The variable to check.
+ * @returns True if the passed input is an Array, false otherwise.
+ * @signature
+ *    R.isArray(data)
+ * @example
+ *    R.isArray([5]) //=> true
+ *    R.isArray([]) //=> true
+ *    R.isArray('somethingElse') //=> false
+ * @category Guard
+ */
+declare function isArray<T>(data: ArrayLike<unknown> | T): data is NarrowedTo<T, ReadonlyArray<unknown>>;
+//#endregion
+export { isArray };
+//# sourceMappingURL=isArray-CsUTj8oP.d.cts.map

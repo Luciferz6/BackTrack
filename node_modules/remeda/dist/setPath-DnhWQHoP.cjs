@@ -1,0 +1,1 @@
+const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t,r){let[i,...a]=t;if(i===void 0)return r;if(Array.isArray(e)){let t=[...e];return t[i]=n(e[i],a,r),t}let{[i]:o,...s}=e;return{...s,[i]:n(o,a,r)}}Object.defineProperty(exports,`setPath`,{enumerable:!0,get:function(){return t}});
