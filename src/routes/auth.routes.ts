@@ -127,17 +127,19 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
     res.cookie("access_token", accessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       maxAge: 15 * 60 * 1000,
-      path: "/"
+      path: "/",
+      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
     });
 
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
+      path: "/",
+      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
     });
 
     res.json({ success: true });
@@ -149,8 +151,14 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-  res.clearCookie("access_token", { path: "/" });
-  res.clearCookie("refresh_token", { path: "/" });
+  res.clearCookie("access_token", { 
+    path: "/", 
+    domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined 
+  });
+  res.clearCookie("refresh_token", { 
+    path: "/", 
+    domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined 
+  });
   res.json({ success: true });
 });
 
@@ -181,15 +189,19 @@ router.post('/refresh', async (req, res) => {
     res.cookie("access_token", newAccessToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 15 * 60 * 1000
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      maxAge: 15 * 60 * 1000,
+      path: "/",
+      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
     });
 
     res.cookie("refresh_token", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 7 * 24 * 60 * 60 * 1000
+      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      path: "/",
+      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
     });
 
     res.json({ success: true });
