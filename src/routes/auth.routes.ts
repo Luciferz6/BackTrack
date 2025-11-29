@@ -114,7 +114,7 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
     const accessToken = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET!,
-      { expiresIn: "15m" }
+      { expiresIn: "7d" } // Mudar de 15min para 7 dias
     );
 
     const refreshToken = jwt.sign(
@@ -128,7 +128,7 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       httpOnly: true,
       secure: true, // OBRIGATÓRIO em produção para cross-site
       sameSite: "none", // OBRIGATÓRIO para cross-site
-      maxAge: 15 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       path: "/"
     });
 
@@ -186,7 +186,7 @@ router.post('/refresh', async (req, res) => {
     const newAccessToken = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET!,
-      { expiresIn: "15m" }
+      { expiresIn: "7d" } // Mudar para 7 dias
     );
 
     const newRefreshToken = jwt.sign(
@@ -199,7 +199,7 @@ router.post('/refresh', async (req, res) => {
       httpOnly: true,
       secure: true, // OBRIGATÓRIO em produção para cross-site
       sameSite: "none", // OBRIGATÓRIO para cross-site
-      maxAge: 15 * 60 * 1000,
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       path: "/"
     });
 
