@@ -25,13 +25,13 @@ export const authenticateToken = (
   // Check httpOnly cookie (for production cookie-based auth)
   if (!token && req.cookies?.access_token) {
     token = req.cookies.access_token;
-    console.log('🍪 Token found in cookies:', token ? 'YES' : 'NO');
+    console.log(`🍪 Token found in cookies: ${req.method} ${req.originalUrl}`);
   } else {
-    console.log('🚫 No cookies found. Cookies:', req.cookies);
+    console.log(`🚫 No cookies found: ${req.method} ${req.originalUrl} - Headers:`, Object.keys(req.headers));
   }
 
   if (!token) {
-    console.log('❌ No token found - returning 401');
+    console.log(`❌ No token found - returning 401 for: ${req.method} ${req.originalUrl}`);
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
