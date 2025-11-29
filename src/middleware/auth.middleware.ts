@@ -22,18 +22,23 @@ export const authenticateToken = (
   
   console.log('🍪 Auth middleware - Cookies:', req.cookies);
   
-  const authHeader = req.headers['authorization'];
-  let token = authHeader && authHeader.split(' ')[1];
+  let token = null;
 
-  // Check query parameter token
-  if (!token && typeof req.query?.token === 'string') {
-    token = req.query.token;
-  }
-
-  // Check httpOnly cookie (for production cookie-based auth)
-  if (!token && req.cookies?.access_token) {
+  // Em produção, priorizar cookies httpOnly
+  if (req.cookies?.access_token) {
     token = req.cookies.access_token;
     console.log('✅ Using token from cookie');
+  }
+  // Check header authorization
+  else if (req.headers['authorization']) {
+    const authHeader = req.headers['authorization'];
+    token = authHeader.split(' ')[1];
+    console.log('✅ Using token from authorization header');
+  }
+  // Check query parameter token
+  else if (typeof req.query?.token === 'string') {
+    token = req.query.token;
+    console.log('✅ Using token from query parameter');
   }
 
   if (!token) {
@@ -42,6 +47,7 @@ export const authenticateToken = (
   }
 
   console.log('✅ Token found, validating...');
+  console.log('🔍 Token preview:', token.substring(0, 50) + '...');
 
   const secret = process.env.JWT_SECRET;
   if (!secret) {
@@ -51,6 +57,7 @@ export const authenticateToken = (
   jwt.verify(token, secret, (err: jwt.VerifyErrors | null, decoded: string | JwtPayload | undefined) => {
     if (err) {
       console.log('❌ Token verification failed:', err.message);
+      console.log('❌ Full error:', err);
       return res.status(403).json({ error: 'Token inválido' });
     }
     
