@@ -123,22 +123,21 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // Definir cookies httpOnly
-    res.cookie("access_token", accessToken, {
+    // Configurações de cookies baseadas no ambiente
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
-      secure: true, // OBRIGATÓRIO em produção para cross-site
-      sameSite: "none", // OBRIGATÓRIO para cross-site
+      secure: isProduction, // false em desenvolvimento, true em produção
+      sameSite: isProduction ? "none" as const : "lax" as const, // none em produção, lax em desenvolvimento
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       path: "/"
-    });
+    };
 
-    res.cookie("refresh_token", refreshToken, {
-      httpOnly: true,
-      secure: true, // OBRIGATÓRIO em produção para cross-site
-      sameSite: "none", // OBRIGATÓRIO para cross-site
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
-    });
+    console.log('🍪 Cookie options:', { isProduction, cookieOptions });
+
+    // Definir cookies httpOnly
+    res.cookie("access_token", accessToken, cookieOptions);
+    res.cookie("refresh_token", refreshToken, cookieOptions);
 
     res.json({ success: true });
   } catch (error) {
@@ -149,16 +148,15 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-  res.clearCookie("access_token", { 
+  const isProduction = process.env.NODE_ENV === 'production';
+  const cookieOptions = {
     path: "/",
-    secure: true,
-    sameSite: "none"
-  });
-  res.clearCookie("refresh_token", { 
-    path: "/",
-    secure: true,
-    sameSite: "none"
-  });
+    secure: isProduction,
+    sameSite: isProduction ? "none" as const : "lax" as const
+  };
+
+  res.clearCookie("access_token", cookieOptions);
+  res.clearCookie("refresh_token", cookieOptions);
   res.json({ success: true });
 });
 
@@ -195,21 +193,18 @@ router.post('/refresh', async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    res.cookie("access_token", newAccessToken, {
+    // Usar mesmas configurações de ambiente dos outros cookies
+    const isProduction = process.env.NODE_ENV === 'production';
+    const cookieOptions = {
       httpOnly: true,
-      secure: true, // OBRIGATÓRIO em produção para cross-site
-      sameSite: "none", // OBRIGATÓRIO para cross-site
-      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
-      path: "/"
-    });
-
-    res.cookie("refresh_token", newRefreshToken, {
-      httpOnly: true,
-      secure: true, // OBRIGATÓRIO em produção para cross-site
-      sameSite: "none", // OBRIGATÓRIO para cross-site
+      secure: isProduction,
+      sameSite: isProduction ? "none" as const : "lax" as const,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/"
-    });
+    };
+
+    res.cookie("access_token", newAccessToken, cookieOptions);
+    res.cookie("refresh_token", newRefreshToken, cookieOptions);
 
     console.log('✅ New tokens set successfully');
     res.json({ success: true });
