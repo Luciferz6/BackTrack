@@ -126,16 +126,16 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
     // Definir cookies httpOnly
     res.cookie("access_token", accessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true, // OBRIGATÓRIO em produção para cross-site
+      sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 15 * 60 * 1000,
       path: "/"
     });
 
     res.cookie("refresh_token", refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true, // OBRIGATÓRIO em produção para cross-site
+      sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/"
     });
@@ -149,8 +149,16 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-  res.clearCookie("access_token", { path: "/" });
-  res.clearCookie("refresh_token", { path: "/" });
+  res.clearCookie("access_token", { 
+    path: "/",
+    secure: true,
+    sameSite: "none"
+  });
+  res.clearCookie("refresh_token", { 
+    path: "/",
+    secure: true,
+    sameSite: "none"
+  });
   res.json({ success: true });
 });
 
@@ -180,16 +188,16 @@ router.post('/refresh', async (req, res) => {
 
     res.cookie("access_token", newAccessToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true, // OBRIGATÓRIO em produção para cross-site
+      sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 15 * 60 * 1000,
       path: "/"
     });
 
     res.cookie("refresh_token", newRefreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
+      secure: true, // OBRIGATÓRIO em produção para cross-site
+      sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/"
     });
