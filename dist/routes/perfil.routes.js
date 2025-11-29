@@ -1,7 +1,7 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma.js';
-import { authenticateToken } from '../middleware/auth.middleware.js';
+import { authenticate } from '../middleware/auth.js';
 import { z } from 'zod';
 import { sensitiveRateLimiter } from '../middleware/rateLimiter.js';
 import { log } from '../utils/logger.js';
@@ -27,9 +27,9 @@ const updateTelegramSchema = z.object({
     ])
 });
 // PUT /api/perfil - Atualizar perfil do usuário
-router.put('/', authenticateToken, async (req, res) => {
+router.put('/', authenticate, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         const data = updateProfileSchema.parse(req.body);
         // Verificar se o plano existe
         const plan = await prisma.plan.findUnique({
@@ -69,13 +69,17 @@ router.put('/', authenticateToken, async (req, res) => {
     }
 });
 // PUT /api/perfil/senha - Alterar senha
-router.put('/senha', authenticateToken, sensitiveRateLimiter, async (req, res) => {
+router.put('/senha', authenticate, sensitiveRateLimiter, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         const data = changePasswordSchema.parse(req.body);
         log.info({ userId }, 'Iniciando alteração de senha');
         const user = await prisma.user.findUnique({
-            where: { id: userId }
+            where: { id: userId },
+            include: {
+                plano: true,
+                bancas: true
+            }
         });
         if (!user) {
             log.warn({ userId }, 'Usuário não encontrado ao tentar alterar senha');
@@ -118,9 +122,9 @@ router.put('/senha', authenticateToken, sensitiveRateLimiter, async (req, res) =
     }
 });
 // GET /api/perfil/consumo - Obter consumo diário do plano
-router.get('/consumo', authenticateToken, async (req, res) => {
+router.get('/consumo', authenticate, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         const user = await prisma.user.findUnique({
             where: { id: userId },
             include: {
@@ -168,9 +172,9 @@ router.get('/consumo', authenticateToken, async (req, res) => {
     }
 });
 // PUT /api/perfil/plano - Atualizar plano do usuário
-router.put('/plano', authenticateToken, async (req, res) => {
+router.put('/plano', authenticate, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         const data = updatePlanSchema.parse(req.body);
         // Verificar se o plano existe
         const plan = await prisma.plan.findUnique({
@@ -209,9 +213,9 @@ router.put('/plano', authenticateToken, async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 });
-router.put('/telegram', authenticateToken, async (req, res) => {
+router.put('/telegram', authenticate, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         const data = updateTelegramSchema.parse(req.body);
         const { telegramId } = data;
         if (telegramId) {
@@ -257,7 +261,7 @@ router.put('/telegram', authenticateToken, async (req, res) => {
     }
 });
 // GET /api/perfil/planos - Listar todos os planos disponíveis
-router.get('/planos', authenticateToken, async (req, res) => {
+router.get('/planos', authenticate, async (req, res) => {
     try {
         const plans = await prisma.plan.findMany({
             select: {
@@ -275,9 +279,9 @@ router.get('/planos', authenticateToken, async (req, res) => {
     }
 });
 // DELETE /api/perfil/reset - Resetar todos os dados da conta
-router.delete('/reset', authenticateToken, sensitiveRateLimiter, async (req, res) => {
+router.delete('/reset', authenticate, sensitiveRateLimiter, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         log.warn({ userId }, 'Iniciando reset de dados da conta');
         // Buscar todas as bancas do usuário
         const bancas = await prisma.bankroll.findMany({
@@ -317,9 +321,9 @@ router.delete('/reset', authenticateToken, sensitiveRateLimiter, async (req, res
     }
 });
 // GET /api/perfil - Obter dados do perfil
-router.get('/', authenticateToken, async (req, res) => {
+router.get('/', authenticate, async (req, res) => {
     try {
-        const userId = req.userId;
+        const userId = req.user.userId;
         log.info({ userId }, 'Tentando carregar perfil do usuário');
         const user = await prisma.user.findUnique({
             where: { id: userId },

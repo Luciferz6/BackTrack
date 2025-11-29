@@ -3,12 +3,8 @@ import { existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
-import pg from 'pg';
 
 dotenv.config();
-
-const { Pool } = pg;
 
 async function main() {
   if (!process.env.DATABASE_URL) {
@@ -39,17 +35,7 @@ async function main() {
     }
   }
 
-  // Criar pool de conexões PostgreSQL
-  const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-  });
-
-  // Criar adaptador do Prisma para PostgreSQL
-  const adapter = new PrismaPg(pool);
-
-  const prisma = new PrismaClient({
-    adapter,
-  });
+  const prisma = new PrismaClient();
   try {
     console.log('> Criando planos...');
     

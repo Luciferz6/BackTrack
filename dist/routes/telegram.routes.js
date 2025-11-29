@@ -15,12 +15,16 @@ const getTelegramBotToken = () => {
     }
     return token;
 };
+const getSupportBotToken = () => {
+    // Token do bot de suporte (opcional, se não configurado usa o token principal)
+    return process.env.TELEGRAM_SUPPORT_BOT_TOKEN || process.env.TELEGRAM_BOT_TOKEN;
+};
 const ensureConfig = () => {
     getTelegramBotToken();
 };
-const sendTelegramMessage = async (chatId, text, replyMarkup, replyToMessageId) => {
+const sendTelegramMessage = async (chatId, text, replyMarkup, replyToMessageId, useSupportBot = false) => {
     try {
-        const token = getTelegramBotToken();
+        const token = useSupportBot ? getSupportBotToken() : getTelegramBotToken();
         const body = {
             chat_id: chatId,
             text
@@ -789,7 +793,39 @@ router.post('/webhook', async (req, res) => {
         // Processar comando /start para vinculação automática
         if (message.text && message.text.startsWith('/start')) {
             const parts = message.text.split(' ');
-            const accountId = parts.length > 1 ? parts[1] : null;
+            const param = parts.length > 1 ? parts[1] : null;
+            // Verificar se é uma chamada de suporte
+            if (param && param.startsWith('support_')) {
+                const accountId = param.replace('support_', '');
+                // Verificar se a conta existe
+                const account = await prisma.user.findUnique({
+                    where: { id: accountId }
+                });
+                if (!account) {
+                    await sendTelegramMessage(message.chat.id, '❌ Conta não encontrada. Verifique se o ID está correto.');
+                    return res.json({ ok: true });
+                }
+                // Extrair primeiro nome (apelido)
+                const firstName = account.nomeCompleto.split(' ')[0] || account.nomeCompleto;
+                // Verificar se o Telegram do usuário está vinculado à conta
+                const user = await prisma.user.findFirst({
+                    where: {
+                        telegramId: telegramUserId,
+                        id: accountId
+                    }
+                });
+                if (user) {
+                    // Usuário vinculado - enviar mensagem de boas-vindas personalizada
+                    await sendTelegramMessage(message.chat.id, `Olá, ${firstName}! 👋\n\nBem-vindo ao suporte!\nComo posso ajudar?`);
+                }
+                else {
+                    // Usuário não vinculado - pedir para vincular
+                    await sendTelegramMessage(message.chat.id, `Olá, ${firstName}! 👋\n\nBem-vindo ao suporte!\nComo posso ajudar?\n\n⚠️ Para um atendimento mais personalizado, vincule sua conta do Telegram no perfil do sistema.`);
+                }
+                return res.json({ ok: true });
+            }
+            // Processamento normal do /start para vinculação
+            const accountId = param;
             if (accountId) {
                 // Verificar se a conta existe
                 const account = await prisma.user.findUnique({
@@ -1338,6 +1374,89 @@ router.post('/update-bet-message/:betId', betUpdateRateLimiter, async (req, res)
     catch (error) {
         log.error(error, 'Erro ao atualizar mensagem do Telegram');
         res.status(500).json({ error: 'Erro ao atualizar mensagem' });
+    }
+});
+// Webhook separado para o bot de suporte
+router.post('/webhook-support', async (req, res) => {
+    try {
+        // Verificar secret token se configurado
+        if (process.env.TELEGRAM_SUPPORT_WEBHOOK_SECRET) {
+            const secret = req.headers['x-telegram-bot-api-secret-token'] ||
+                req.headers['X-Telegram-Bot-Api-Secret-Token'];
+            if (!secret || (typeof secret !== 'string' || secret !== process.env.TELEGRAM_SUPPORT_WEBHOOK_SECRET)) {
+                log.warn({ hasSecret: !!secret }, 'Webhook de suporte chamado com secret token inválido');
+                return res.status(403).json({ error: 'Secret token inválido' });
+            }
+        }
+        const update = req.body;
+        console.log('=== WEBHOOK DE SUPORTE RECEBIDO ===');
+        console.log('Tipo:', update.callback_query ? 'CALLBACK_QUERY' : update.message ? 'MESSAGE' : 'UNKNOWN');
+        console.log('Body completo:', JSON.stringify(update, null, 2));
+        log.info({
+            hasCallbackQuery: !!update.callback_query,
+            hasMessage: !!update.message,
+            updateType: update.callback_query ? 'callback_query' : update.message ? 'message' : 'unknown'
+        }, 'Webhook de suporte recebido');
+        // Responder imediatamente ao Telegram
+        res.json({ ok: true });
+        // Processar mensagens
+        if (update.message) {
+            const message = update.message;
+            const telegramUserId = String(message.from?.id);
+            if (!telegramUserId) {
+                log.warn({ message: 'Sem telegramUserId' }, 'Mensagem de suporte sem userId');
+                return;
+            }
+            // Processar comando /start para suporte
+            if (message.text && message.text.startsWith('/start')) {
+                const parts = message.text.split(' ');
+                const param = parts.length > 1 ? parts[1] : null;
+                // Verificar se é uma chamada de suporte
+                if (param && param.startsWith('support_')) {
+                    const accountId = param.replace('support_', '');
+                    // Verificar se a conta existe
+                    const account = await prisma.user.findUnique({
+                        where: { id: accountId }
+                    });
+                    if (!account) {
+                        await sendTelegramMessage(message.chat.id, '❌ Conta não encontrada.', true);
+                        return;
+                    }
+                    // Extrair primeiro nome (apelido)
+                    const firstName = account.nomeCompleto.split(' ')[0] || account.nomeCompleto;
+                    // Verificar se o Telegram do usuário está vinculado à conta
+                    const user = await prisma.user.findFirst({
+                        where: {
+                            telegramId: telegramUserId,
+                            id: accountId
+                        }
+                    });
+                    if (user) {
+                        // Usuário vinculado - enviar mensagem de boas-vindas personalizada
+                        await sendTelegramMessage(message.chat.id, `Olá, ${firstName}! 👋\n\nBem-vindo ao suporte!\nComo posso ajudar?`, undefined, undefined, true);
+                    }
+                    else {
+                        // Usuário não vinculado - pedir para vincular
+                        await sendTelegramMessage(message.chat.id, `Olá, ${firstName}! 👋\n\nBem-vindo ao suporte!\nComo posso ajudar?\n\n⚠️ Para um atendimento mais personalizado, vincule sua conta do Telegram no perfil do sistema.`, undefined, undefined, true);
+                    }
+                    return;
+                }
+            }
+            // Se não for comando /start support_, apenas enviar mensagem genérica
+            if (message.text && message.text.startsWith('/start')) {
+                await sendTelegramMessage(message.chat.id, 'Olá! 👋\n\nBem-vindo ao suporte!\nComo posso ajudar?', undefined, undefined, true);
+                return;
+            }
+            // Para outras mensagens, apenas logar (pode ser expandido para processar mensagens de suporte)
+            log.info({
+                chatId: message.chat.id,
+                text: message.text?.substring(0, 100)
+            }, 'Mensagem recebida no bot de suporte');
+        }
+    }
+    catch (error) {
+        log.error(error, 'Erro no webhook de suporte do Telegram');
+        // Já respondemos ao Telegram, então apenas logar o erro
     }
 });
 export default router;

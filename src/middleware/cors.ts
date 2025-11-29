@@ -58,7 +58,7 @@ const corsOptions: CorsOptions = {
   credentials: true, // Permitir cookies/credenciais
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-  exposedHeaders: ['RateLimit-Remaining', 'RateLimit-Reset', 'RateLimit-Limit']
+  exposedHeaders: ['RateLimit-Remaining', 'RateLimit-Reset', 'RateLimit-Limit', 'Set-Cookie']
 };
 
 export const corsMiddleware = cors(corsOptions);

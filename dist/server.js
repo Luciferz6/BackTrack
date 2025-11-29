@@ -29,13 +29,19 @@ if (process.env.NODE_ENV === 'production') {
 // Exemplo de uso: proteger rotas sensíveis
 // Rota para obter o token CSRF
 // ...existing code...
-// Rota raiz
+// Keep-alive endpoint para monitoramento (ex: UptimeRobot)
 app.get('/', (req, res) => {
+    res.send('Backend funcionando!');
+    log.info('Ping recebido do UptimeRobot');
+});
+// Informações gerais da API
+app.get('/info', (req, res) => {
     res.json({
         message: 'API Backend Planilha',
         version: '1.0.0',
         endpoints: {
             health: '/health',
+            info: '/info',
             auth: '/api/auth',
             bancas: '/api/bancas',
             financeiro: '/api/financeiro',

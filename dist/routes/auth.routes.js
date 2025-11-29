@@ -88,20 +88,66 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
         if (!validPassword) {
             return res.status(401).json({ error: 'Credenciais inválidas' });
         }
-        const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: '7d' });
-        res.json({
-            token,
-            user: {
-                id: user.id,
-                nomeCompleto: user.nomeCompleto,
-                email: user.email,
-                plano: user.plano
-            }
+        const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "15m" });
+        const refreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
+        // Definir cookies httpOnly
+        res.cookie("access_token", accessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 15 * 60 * 1000,
+            path: "/"
         });
+        res.cookie("refresh_token", refreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: "/"
+        });
+        res.json({ success: true });
     }
     catch (error) {
         log.error(error, 'Erro ao fazer login');
         handleRouteError(error, res);
+    }
+});
+// Logout
+router.post('/logout', (req, res) => {
+    res.clearCookie("access_token", { path: "/" });
+    res.clearCookie("refresh_token", { path: "/" });
+    res.json({ success: true });
+});
+// Refresh Token
+router.post('/refresh', async (req, res) => {
+    try {
+        const refreshToken = req.cookies.refresh_token;
+        if (!refreshToken)
+            return res.status(401).json({ error: 'Refresh token ausente' });
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
+        const user = await prisma.user.findUnique({
+            where: { id: decoded.userId }
+        });
+        if (!user)
+            return res.status(401).json({ error: 'Usuário inválido' });
+        const newAccessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "15m" });
+        const newRefreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
+        res.cookie("access_token", newAccessToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 15 * 60 * 1000
+        });
+        res.cookie("refresh_token", newRefreshToken, {
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "strict",
+            maxAge: 7 * 24 * 60 * 60 * 1000
+        });
+        res.json({ success: true });
+    }
+    catch (err) {
+        return res.status(401).json({ error: 'Refresh inválido' });
     }
 });
 // Login via Telegram Web App
