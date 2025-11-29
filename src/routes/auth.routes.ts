@@ -44,7 +44,7 @@ router.post('/register', sensitiveRateLimiter, async (req, res) => {
     }
 
     // Criar usuário e banca padrão em uma transação
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx: any) => {
       // Criar usuário
       const user = await tx.user.create({
         data: {
@@ -129,8 +129,7 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       maxAge: 15 * 60 * 1000,
-      path: "/",
-      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
+      path: "/"
     });
 
     res.cookie("refresh_token", refreshToken, {
@@ -138,8 +137,7 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/",
-      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
+      path: "/"
     });
 
     res.json({ success: true });
@@ -151,14 +149,8 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-  res.clearCookie("access_token", { 
-    path: "/", 
-    domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined 
-  });
-  res.clearCookie("refresh_token", { 
-    path: "/", 
-    domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined 
-  });
+  res.clearCookie("access_token", { path: "/" });
+  res.clearCookie("refresh_token", { path: "/" });
   res.json({ success: true });
 });
 
@@ -191,8 +183,7 @@ router.post('/refresh', async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       maxAge: 15 * 60 * 1000,
-      path: "/",
-      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
+      path: "/"
     });
 
     res.cookie("refresh_token", newRefreshToken, {
@@ -200,8 +191,7 @@ router.post('/refresh', async (req, res) => {
       secure: process.env.NODE_ENV === "production",
       sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/",
-      domain: process.env.NODE_ENV === "production" ? "realtracker.site" : undefined
+      path: "/"
     });
 
     res.json({ success: true });
