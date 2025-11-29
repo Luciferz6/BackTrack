@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { prisma } from './lib/prisma.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { globalRateLimiter } from './middleware/rateLimiter.js';
@@ -26,6 +27,7 @@ app.set('trust proxy', 1);
 // Middlewares globais
 app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' })); // Limite de tamanho do body
+app.use(cookieParser()); // Essencial para httpOnly cookies
 
 // Aplicar rate limiting global apenas em produção
 if (process.env.NODE_ENV === 'production') {
