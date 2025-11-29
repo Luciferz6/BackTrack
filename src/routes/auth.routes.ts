@@ -165,15 +165,24 @@ router.post('/logout', (req, res) => {
 // Refresh Token
 router.post('/refresh', async (req, res) => {
   try {
+    console.log('🔄 Refresh request - Cookies:', req.cookies);
     const refreshToken = req.cookies.refresh_token;
-    if (!refreshToken) return res.status(401).json({ error: 'Refresh token ausente' });
+    if (!refreshToken) {
+      console.log('❌ No refresh token in cookies');
+      return res.status(401).json({ error: 'Refresh token ausente' });
+    }
 
+    console.log('✅ Refresh token found, verifying...');
     const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET!) as { userId: string };
     const user = await prisma.user.findUnique({
       where: { id: decoded.userId }
     });
-    if (!user) return res.status(401).json({ error: 'Usuário inválido' });
+    if (!user) {
+      console.log('❌ User not found for token');
+      return res.status(401).json({ error: 'Usuário inválido' });
+    }
 
+    console.log('✅ User found, generating new tokens...');
     const newAccessToken = jwt.sign(
       { userId: user.id },
       process.env.JWT_SECRET!,
@@ -202,9 +211,11 @@ router.post('/refresh', async (req, res) => {
       path: "/"
     });
 
+    console.log('✅ New tokens set successfully');
     res.json({ success: true });
 
   } catch (err) {
+    console.log('❌ Refresh token verification failed:', err);
     return res.status(401).json({ error: 'Refresh inválido' });
   }
 });
