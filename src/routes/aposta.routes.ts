@@ -154,7 +154,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
       select: { id: true }
     });
 
-    const bancaIds = bancas.map(b => b.id);
+    const bancaIds = bancas.map((b: { id: string }) => b.id);
 
     if (bancaIds.length === 0) {
       return res.json([]);
@@ -162,7 +162,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
 
     // Se bancaId específico foi fornecido, filtrar apenas essa banca
     const filteredBancaIds = bancaId && typeof bancaId === 'string' 
-      ? bancaIds.filter(id => id === bancaId)
+      ? bancaIds.filter((id: string) => id === bancaId)
       : bancaIds;
 
     if (filteredBancaIds.length === 0) {
@@ -288,7 +288,7 @@ router.get('/resumo', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
 
-    const bancaIds = bancas.map(b => b.id);
+    const bancaIds = bancas.map((b: { id: string }) => b.id);
 
     const apostas = await prisma.bet.findMany({
       where: { bancaId: { in: bancaIds } }
@@ -296,18 +296,18 @@ router.get('/resumo', authenticateToken, async (req: AuthRequest, res) => {
 
     const totalApostas = apostas.length;
     // Total Investido: todas as apostas (concluídas ou pendentes)
-    const totalInvestido = apostas.reduce((sum, a) => sum + a.valorApostado, 0);
+    const totalInvestido = apostas.reduce((sum: number, a: any) => sum + a.valorApostado, 0);
     
     // Resultado de Apostas: apenas concluídas
-    const apostasConcluidas = apostas.filter(a => isApostaConcluida(a.status));
-    const resultadoApostas = apostasConcluidas.reduce((sum, a) => {
+    const apostasConcluidas = apostas.filter((a: any) => isApostaConcluida(a.status));
+    const resultadoApostas = apostasConcluidas.reduce((sum: number, a: any) => {
       return sum + calcularResultadoAposta(a.status, a.valorApostado, a.retornoObtido);
     }, 0);
 
-    const apostasGanhas = apostasConcluidas.filter(a => isApostaGanha(a.status));
-    const apostasPendentes = apostas.filter(a => a.status === 'Pendente').length;
-    const apostasPerdidas = apostas.filter(a => a.status === 'Perdida').length;
-    const apostasVoid = apostas.filter(a => a.status === 'Void').length;
+    const apostasGanhas = apostasConcluidas.filter((a: any) => isApostaGanha(a.status));
+    const apostasPendentes = apostas.filter((a: any) => a.status === 'Pendente').length;
+    const apostasPerdidas = apostas.filter((a: any) => a.status === 'Perdida').length;
+    const apostasVoid = apostas.filter((a: any) => a.status === 'Void').length;
 
     // Taxa de Acerto: apenas apostas concluídas
     const taxaAcerto = apostasConcluidas.length > 0
@@ -383,7 +383,7 @@ router.delete('/all', authenticateToken, async (req: AuthRequest, res) => {
       select: { id: true }
     });
 
-    const bancaIds = bancas.map(b => b.id);
+    const bancaIds = bancas.map((b: { id: string }) => b.id);
 
     const result = await prisma.bet.deleteMany({
       where: { bancaId: { in: bancaIds } }
@@ -404,6 +404,60 @@ router.delete('/all', authenticateToken, async (req: AuthRequest, res) => {
   }
 });
 
+// GET /api/apostas/recentes - Buscar últimas 5 apostas
+router.get('/recentes', authenticateToken, async (req: AuthRequest, res) => {
+  try {
+    const userId = req.userId!;
+
+    const bancas = await prisma.bankroll.findMany({
+      where: { usuarioId: userId },
+      select: { id: true }
+    });
+
+    const bancaIds = bancas.map((b: { id: string }) => b.id);
+
+    if (bancaIds.length === 0) {
+      return res.json([]);
+    }
+
+    const apostasRecentes = await prisma.bet.findMany({
+      where: { bancaId: { in: bancaIds } },
+      include: {
+        banca: {
+          select: {
+            id: true,
+            nome: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 5
+    });
+
+    // Calcular lucro/prejuízo para cada aposta
+    const apostasComLucro = apostasRecentes.map((aposta: any) => {
+      const resultado = calcularResultadoAposta(aposta.status, aposta.valorApostado, aposta.retornoObtido);
+      return {
+        id: aposta.id,
+        evento: `${aposta.jogo}${aposta.torneio ? ` - ${aposta.torneio}` : ''}`,
+        odd: aposta.odds?.toString() || aposta.odd?.toString() || '-',
+        status: aposta.status === 'Ganha' || aposta.status === 'Meio Ganha' ? 'GANHOU' : 
+                aposta.status === 'Perdida' || aposta.status === 'Meio Perdida' ? 'PERDEU' : 
+                aposta.status,
+        lucro: resultado,
+        dataJogo: aposta.dataJogo,
+        esporte: aposta.esporte,
+        casaDeAposta: aposta.casaDeAposta
+      };
+    });
+
+    res.json(apostasComLucro);
+  } catch (error) {
+    handleRouteError(error, res);
+  }
+});
+
+// GET /api/apostas/stream - Stream de atualizações de apostas
 router.get('/stream', authenticateToken, async (req: AuthRequest, res) => {
   const userId = req.userId!;
 
