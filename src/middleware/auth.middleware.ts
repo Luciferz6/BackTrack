@@ -14,6 +14,11 @@ export const authenticateToken = (
   res: Response,
   next: NextFunction
 ) => {
+  // Log simples para debug
+  if (req.originalUrl?.includes('/perfil')) {
+    console.log('🔍 /perfil request - Cookies exist:', !!req.cookies, 'Cookie header:', !!req.headers.cookie);
+  }
+
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1];
 
@@ -27,7 +32,9 @@ export const authenticateToken = (
     token = req.cookies.access_token;
     console.log(`✅ Token found in cookies for: ${req.method} ${req.originalUrl}`);
   } else {
-    console.log(`❌ No token found - Cookies:`, req.cookies, `Headers:`, Object.keys(req.headers));
+    if (req.originalUrl?.includes('/perfil')) {
+      console.log(`❌ No token in /perfil - Cookies:`, req.cookies, `Headers:`, Object.keys(req.headers));
+    }
   }
 
   if (!token) {
