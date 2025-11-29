@@ -95,6 +95,10 @@ router.post('/register', sensitiveRateLimiter, async (req, res) => {
 // Login
 router.post('/login', sensitiveRateLimiter, async (req, res) => {
   try {
+    console.log('🔐 Login request received');
+    console.log('🌐 Origin:', req.headers.origin);
+    console.log('🍪 Request cookies:', req.cookies);
+    
     const data = loginSchema.parse(req.body);
     
     const user = await prisma.user.findUnique({
@@ -103,13 +107,17 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
     });
 
     if (!user) {
+      console.log('❌ User not found:', data.email);
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
 
     const validPassword = await bcrypt.compare(data.senha, user.senha);
     if (!validPassword) {
+      console.log('❌ Invalid password for user:', data.email);
       return res.status(401).json({ error: 'Credenciais inválidas' });
     }
+
+    console.log('✅ User authenticated:', user.email);
 
     const accessToken = jwt.sign(
       { userId: user.id },
@@ -139,6 +147,9 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
     res.cookie("access_token", accessToken, cookieOptions);
     res.cookie("refresh_token", refreshToken, cookieOptions);
 
+    console.log('✅ Cookies set successfully');
+    console.log('🍪 Response headers:', res.getHeaders());
+    
     res.json({ success: true });
   } catch (error) {
     log.error(error, 'Erro ao fazer login');
