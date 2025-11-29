@@ -129,7 +129,8 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       secure: true, // OBRIGATÓRIO em produção para cross-site
       sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 15 * 60 * 1000,
-      path: "/"
+      path: "/",
+      domain: ".onrender.com" // Para subdomínios do Render
     });
 
     res.cookie("refresh_token", refreshToken, {
@@ -137,7 +138,8 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       secure: true, // OBRIGATÓRIO em produção para cross-site
       sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
+      path: "/",
+      domain: ".onrender.com" // Para subdomínios do Render
     });
 
     res.json({ success: true });
@@ -152,12 +154,14 @@ router.post('/logout', (req, res) => {
   res.clearCookie("access_token", { 
     path: "/",
     secure: true,
-    sameSite: "none"
+    sameSite: "none",
+    domain: ".onrender.com"
   });
   res.clearCookie("refresh_token", { 
     path: "/",
     secure: true,
-    sameSite: "none"
+    sameSite: "none",
+    domain: ".onrender.com"
   });
   res.json({ success: true });
 });
@@ -191,7 +195,8 @@ router.post('/refresh', async (req, res) => {
       secure: true, // OBRIGATÓRIO em produção para cross-site
       sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 15 * 60 * 1000,
-      path: "/"
+      path: "/",
+      domain: ".onrender.com" // Para subdomínios do Render
     });
 
     res.cookie("refresh_token", newRefreshToken, {
@@ -199,7 +204,8 @@ router.post('/refresh', async (req, res) => {
       secure: true, // OBRIGATÓRIO em produção para cross-site
       sameSite: "none", // OBRIGATÓRIO para cross-site
       maxAge: 7 * 24 * 60 * 60 * 1000,
-      path: "/"
+      path: "/",
+      domain: ".onrender.com" // Para subdomínios do Render
     });
 
     res.json({ success: true });
