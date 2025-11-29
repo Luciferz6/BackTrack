@@ -17,8 +17,14 @@ export const authenticateToken = (
   const authHeader = req.headers['authorization'];
   let token = authHeader && authHeader.split(' ')[1];
 
+  // Check query parameter token
   if (!token && typeof req.query?.token === 'string') {
     token = req.query.token;
+  }
+
+  // Check httpOnly cookie (for production cookie-based auth)
+  if (!token && req.cookies?.access_token) {
+    token = req.cookies.access_token;
   }
 
   if (!token) {
