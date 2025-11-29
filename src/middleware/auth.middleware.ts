@@ -25,9 +25,13 @@ export const authenticateToken = (
   // Check httpOnly cookie (for production cookie-based auth)
   if (!token && req.cookies?.access_token) {
     token = req.cookies.access_token;
+    console.log(`✅ Token found in cookies for: ${req.method} ${req.originalUrl}`);
+  } else {
+    console.log(`❌ No token found - Cookies:`, req.cookies, `Headers:`, Object.keys(req.headers));
   }
 
   if (!token) {
+    console.log(`🚫 Returning 401 for: ${req.method} ${req.originalUrl}`);
     return res.status(401).json({ error: 'Token não fornecido' });
   }
 
