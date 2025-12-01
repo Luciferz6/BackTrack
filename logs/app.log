@@ -1,0 +1,15 @@
+{"level":"INFO","time":"2025-12-01T12:58:17.751Z","pid":18784,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-01T12:58:17.861Z","pid":18784,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-01T12:58:20.564Z","pid":18784,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
+{"level":"INFO","time":"2025-12-01T12:59:02.746Z","pid":16456,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-01T12:59:02.852Z","pid":16456,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-01T12:59:04.735Z","pid":16456,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
+{"level":"INFO","time":"2025-12-01T12:59:34.993Z","pid":13208,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-01T12:59:35.093Z","pid":13208,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-01T12:59:37.248Z","pid":13208,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
+{"level":"INFO","time":"2025-12-01T13:00:37.452Z","pid":19020,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-01T13:00:37.558Z","pid":19020,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-01T13:00:40.454Z","pid":19020,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
+{"level":"WARN","time":"2025-12-01T13:00:47.147Z","pid":19020,"hostname":"DESKTOP-H41K160","origin":"http://localhost:5173","allowedOrigins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"Requisição bloqueada por CORS"}
+{"level":"WARN","time":"2025-12-01T13:00:49.978Z","pid":19020,"hostname":"DESKTOP-H41K160","origin":"http://localhost:5173","allowedOrigins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"Requisição bloqueada por CORS"}
+{"level":"WARN","time":"2025-12-01T13:00:50.538Z","pid":19020,"hostname":"DESKTOP-H41K160","origin":"http://localhost:5173","allowedOrigins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com"],"msg":"Requisição bloqueada por CORS"}
