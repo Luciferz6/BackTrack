@@ -76,36 +76,56 @@ router.post('/register', sensitiveRateLimiter, async (req, res) => {
 // Login
 router.post('/login', sensitiveRateLimiter, async (req, res) => {
     try {
+        console.log('🔐 Login request received');
+        console.log('🌐 Origin:', req.headers.origin);
+        console.log('🍪 Request cookies:', req.cookies);
         const data = loginSchema.parse(req.body);
         const user = await prisma.user.findUnique({
             where: { email: data.email },
             include: { plano: true }
         });
         if (!user) {
+            console.log('❌ User not found:', data.email);
             return res.status(401).json({ error: 'Credenciais inválidas' });
         }
         const validPassword = await bcrypt.compare(data.senha, user.senha);
         if (!validPassword) {
+            console.log('❌ Invalid password for user:', data.email);
             return res.status(401).json({ error: 'Credenciais inválidas' });
         }
-        const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "15m" });
+        console.log('✅ User authenticated:', user.email);
+        const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" } // Mudar de 15min para 7 dias
+        );
         const refreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
+        // Configurações de cookies baseadas no ambiente
+        const isProduction = process.env.NODE_ENV === 'production';
+        // Para cookies cross-domain (frontend em realtracker.site, backend em backtrack-msc1.onrender.com):
+        // - DEVE usar sameSite: 'none' (permite cross-site)
+        // - DEVE usar secure: true (HTTPS obrigatório com SameSite=None)
+        // - DEVE ter CORS configurado com credentials: true
+        const cookieOptions = {
+            httpOnly: true,
+            secure: true, // SEMPRE true para SameSite=None (mesmo em dev, usar HTTPS)
+            sameSite: "none", // Permitir cookies cross-domain
+            maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
+            path: "/",
+            // NÃO definir 'domain' - cookies serão enviados apenas para o domínio que os definiu
+        };
+        console.log('🍪 Cookie options:', { isProduction, cookieOptions });
+        console.log('🍪 Setting cookies for origin:', req.headers.origin);
         // Definir cookies httpOnly
-        res.cookie("access_token", accessToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 15 * 60 * 1000,
-            path: "/"
+        res.cookie("access_token", accessToken, cookieOptions);
+        res.cookie("refresh_token", refreshToken, cookieOptions);
+        console.log('✅ Cookies set successfully');
+        console.log('🍪 Set-Cookie headers:', res.getHeader('Set-Cookie'));
+        // TEMPORÁRIO: Retornar tokens no body para usar com localStorage
+        // até configurar subdomínio api.realtracker.site
+        res.json({
+            success: true,
+            token: accessToken,
+            refreshToken: refreshToken,
+            expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 dias em ms
         });
-        res.cookie("refresh_token", refreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000,
-            path: "/"
-        });
-        res.json({ success: true });
     }
     catch (error) {
         log.error(error, 'Erro ao fazer login');
@@ -114,39 +134,53 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 });
 // Logout
 router.post('/logout', (req, res) => {
-    res.clearCookie("access_token", { path: "/" });
-    res.clearCookie("refresh_token", { path: "/" });
+    const cookieOptions = {
+        path: "/",
+        secure: true,
+        sameSite: "none",
+        httpOnly: true
+    };
+    res.clearCookie("access_token", cookieOptions);
+    res.clearCookie("refresh_token", cookieOptions);
     res.json({ success: true });
 });
 // Refresh Token
 router.post('/refresh', async (req, res) => {
     try {
+        console.log('🔄 Refresh request - Cookies:', req.cookies);
         const refreshToken = req.cookies.refresh_token;
-        if (!refreshToken)
+        if (!refreshToken) {
+            console.log('❌ No refresh token in cookies');
             return res.status(401).json({ error: 'Refresh token ausente' });
+        }
+        console.log('✅ Refresh token found, verifying...');
         const decoded = jwt.verify(refreshToken, process.env.REFRESH_SECRET);
         const user = await prisma.user.findUnique({
             where: { id: decoded.userId }
         });
-        if (!user)
+        if (!user) {
+            console.log('❌ User not found for token');
             return res.status(401).json({ error: 'Usuário inválido' });
-        const newAccessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "15m" });
+        }
+        console.log('✅ User found, generating new tokens...');
+        const newAccessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: "7d" } // Mudar para 7 dias
+        );
         const newRefreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_SECRET, { expiresIn: "7d" });
-        res.cookie("access_token", newAccessToken, {
+        // Usar mesmas configurações dos outros cookies
+        const cookieOptions = {
             httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 15 * 60 * 1000
-        });
-        res.cookie("refresh_token", newRefreshToken, {
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "strict",
-            maxAge: 7 * 24 * 60 * 60 * 1000
-        });
+            secure: true,
+            sameSite: "none",
+            maxAge: 7 * 24 * 60 * 60 * 1000,
+            path: "/"
+        };
+        res.cookie("access_token", newAccessToken, cookieOptions);
+        res.cookie("refresh_token", newRefreshToken, cookieOptions);
+        console.log('✅ New tokens set successfully');
         res.json({ success: true });
     }
     catch (err) {
+        console.log('❌ Refresh token verification failed:', err);
         return res.status(401).json({ error: 'Refresh inválido' });
     }
 });

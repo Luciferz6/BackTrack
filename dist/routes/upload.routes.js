@@ -52,9 +52,29 @@ router.post("/bilhete", authenticateToken, (req, res, next) => {
         if (res.headersSent) {
             return;
         }
+        // Extract more detailed error information
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isDevelopment = process.env.NODE_ENV !== "production";
+        // Check for specific error types
+        if (errorMessage.includes("API_KEY") || errorMessage.includes("não configurada")) {
+            return res.status(500).json({
+                error: "Configuração inválida",
+                message: "As chaves de API necessárias para processar bilhetes não estão configuradas no servidor.",
+                details: isDevelopment ? errorMessage : undefined
+            });
+        }
+        if (errorMessage.includes("Nenhum provedor de IA configurado")) {
+            return res.status(500).json({
+                error: "Configuração inválida",
+                message: "Nenhum provedor de IA (Gemini ou DeepSeek) está configurado no servidor.",
+                details: isDevelopment ? errorMessage : undefined
+            });
+        }
+        // Generic error response
         res.status(500).json({
             error: "Erro ao processar bilhete",
-            message: "Não foi possível ler o bilhete. Tente novamente em instantes."
+            message: "Não foi possível ler o bilhete. Tente novamente em instantes.",
+            details: isDevelopment ? errorMessage : undefined
         });
     }
 });

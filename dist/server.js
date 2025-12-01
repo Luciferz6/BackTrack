@@ -1,5 +1,6 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import cookieParser from 'cookie-parser';
 import { prisma } from './lib/prisma.js';
 import { corsMiddleware } from './middleware/cors.js';
 import { globalRateLimiter } from './middleware/rateLimiter.js';
@@ -19,9 +20,19 @@ const app = express();
 // 1 = confiar apenas no primeiro proxy (Render, Vercel, Railway geralmente têm 1 proxy)
 // Isso é mais seguro que 'true' que confia em todos os proxies
 app.set('trust proxy', 1);
+// Desabilitar ETag para evitar cache 304 Not Modified em APIs dinâmicas
+app.set('etag', false);
 // Middlewares globais
 app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' })); // Limite de tamanho do body
+app.use(cookieParser()); // Essencial para httpOnly cookies
+// Desabilitar cache para todas as rotas de API
+app.use('/api', (req, res, next) => {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+    res.set('Pragma', 'no-cache');
+    res.set('Expires', '0');
+    next();
+});
 // Aplicar rate limiting global apenas em produção
 if (process.env.NODE_ENV === 'production') {
     app.use(globalRateLimiter);
