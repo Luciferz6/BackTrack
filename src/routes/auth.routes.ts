@@ -138,17 +138,19 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
       secure: isProduction, // false em desenvolvimento, true em produção
       sameSite: isProduction ? "none" as const : "lax" as const, // none em produção, lax em desenvolvimento
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
-      path: "/"
+      path: "/",
+      // Não definir domain para permitir cookies cross-domain com sameSite: none
     };
 
     console.log('🍪 Cookie options:', { isProduction, cookieOptions });
+    console.log('🍪 Setting cookies for origin:', req.headers.origin);
 
     // Definir cookies httpOnly
     res.cookie("access_token", accessToken, cookieOptions);
     res.cookie("refresh_token", refreshToken, cookieOptions);
 
     console.log('✅ Cookies set successfully');
-    console.log('🍪 Response headers:', res.getHeaders());
+    console.log('🍪 Set-Cookie headers:', res.getHeader('Set-Cookie'));
     
     res.json({ success: true });
   } catch (error) {

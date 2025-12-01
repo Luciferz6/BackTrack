@@ -37,20 +37,27 @@ const allowedOrigins = getAllowedOrigins();
 
 const corsOptions: CorsOptions = {
   origin: (origin, callback) => {
+    console.log('🌐 [CORS] Requisição de origem:', origin);
+    
     // Se allowedOrigins é null, permitir qualquer origem
     if (allowedOrigins === null) {
+      console.log('✅ [CORS] Permitindo qualquer origem (dev mode ou não configurado)');
       return callback(null, true);
     }
 
     // Se não há origin (ex: requisições de mesma origem, Postman), permitir
     if (!origin) {
+      console.log('✅ [CORS] Permitindo requisição sem origin (same-origin ou tool)');
       return callback(null, true);
     }
 
     // Verificar se a origem está na lista branca
     if (allowedOrigins.includes(origin)) {
+      console.log('✅ [CORS] Origem permitida:', origin);
       callback(null, true);
     } else {
+      console.log('❌ [CORS] Origem bloqueada:', origin);
+      console.log('❌ [CORS] Origins permitidas:', allowedOrigins);
       log.warn({ origin, allowedOrigins }, 'Requisição bloqueada por CORS');
       callback(new Error('Não permitido por CORS'));
     }
