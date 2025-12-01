@@ -157,7 +157,14 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
     console.log('✅ Cookies set successfully');
     console.log('🍪 Set-Cookie headers:', res.getHeader('Set-Cookie'));
     
-    res.json({ success: true });
+    // TEMPORÁRIO: Retornar tokens no body para usar com localStorage
+    // até configurar subdomínio api.realtracker.site
+    res.json({ 
+      success: true,
+      token: accessToken,
+      refreshToken: refreshToken,
+      expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 dias em ms
+    });
   } catch (error) {
     log.error(error, 'Erro ao fazer login');
     handleRouteError(error, res);
