@@ -133,13 +133,18 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 
     // Configurações de cookies baseadas no ambiente
     const isProduction = process.env.NODE_ENV === 'production';
+    
+    // Para cookies cross-domain (frontend em realtracker.site, backend em backtrack-msc1.onrender.com):
+    // - DEVE usar sameSite: 'none' (permite cross-site)
+    // - DEVE usar secure: true (HTTPS obrigatório com SameSite=None)
+    // - DEVE ter CORS configurado com credentials: true
     const cookieOptions = {
       httpOnly: true,
-      secure: isProduction, // false em desenvolvimento, true em produção
-      sameSite: isProduction ? "none" as const : "lax" as const, // none em produção, lax em desenvolvimento
+      secure: true, // SEMPRE true para SameSite=None (mesmo em dev, usar HTTPS)
+      sameSite: "none" as const, // Permitir cookies cross-domain
       maxAge: 7 * 24 * 60 * 60 * 1000, // 7 dias
       path: "/",
-      // Não definir domain para permitir cookies cross-domain com sameSite: none
+      // NÃO definir 'domain' - cookies serão enviados apenas para o domínio que os definiu
     };
 
     console.log('🍪 Cookie options:', { isProduction, cookieOptions });
@@ -161,11 +166,11 @@ router.post('/login', sensitiveRateLimiter, async (req, res) => {
 
 // Logout
 router.post('/logout', (req, res) => {
-  const isProduction = process.env.NODE_ENV === 'production';
   const cookieOptions = {
     path: "/",
-    secure: isProduction,
-    sameSite: isProduction ? "none" as const : "lax" as const
+    secure: true,
+    sameSite: "none" as const,
+    httpOnly: true
   };
 
   res.clearCookie("access_token", cookieOptions);
@@ -206,12 +211,11 @@ router.post('/refresh', async (req, res) => {
       { expiresIn: "7d" }
     );
 
-    // Usar mesmas configurações de ambiente dos outros cookies
-    const isProduction = process.env.NODE_ENV === 'production';
+    // Usar mesmas configurações dos outros cookies
     const cookieOptions = {
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" as const : "lax" as const,
+      secure: true,
+      sameSite: "none" as const,
       maxAge: 7 * 24 * 60 * 60 * 1000,
       path: "/"
     };
