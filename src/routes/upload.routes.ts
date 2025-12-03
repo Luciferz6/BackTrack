@@ -61,8 +61,8 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
       .webp({ quality: 85 })
       .toFile(filepath);
 
-    // Construir a URL da imagem
-    const baseUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 3001}`;
+    // Construir URL com base no host atual para funcionar em qualquer ambiente
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
     const fotoUrl = `${baseUrl}/uploads/perfil/${filename}`;
 
     // Buscar foto antiga para deletar

@@ -11,6 +11,8 @@ const router = express.Router();
 const updateProfileSchema = z.object({
     nomeCompleto: z.string().min(3).max(100).optional(),
     email: z.string().email().max(255).optional(),
+    telegramUsername: z.string().min(3).max(50).optional(),
+    fotoPerfil: z.string().url().optional(),
     planoId: z.string().uuid().optional()
 });
 const changePasswordSchema = z.object({
@@ -31,21 +33,44 @@ router.put('/', authenticate, async (req, res) => {
     try {
         const userId = req.user.userId;
         const data = updateProfileSchema.parse(req.body);
-        // Verificar se o plano existe
-        const plan = await prisma.plan.findUnique({
-            where: { id: data.planoId }
-        });
-        if (!plan) {
-            return res.status(404).json({ error: 'Plano não encontrado' });
+        const updateData = {};
+        if (data.nomeCompleto) {
+            updateData.nomeCompleto = data.nomeCompleto;
         }
-        // Atualizar plano do usuário
+        if (data.email) {
+            updateData.email = data.email;
+        }
+        if (data.telegramUsername !== undefined) {
+            updateData.telegramUsername = data.telegramUsername;
+        }
+        if (data.fotoPerfil) {
+            updateData.fotoPerfil = data.fotoPerfil;
+        }
+        if (data.planoId) {
+            const plan = await prisma.plan.findUnique({
+                where: { id: data.planoId }
+            });
+            if (!plan) {
+                return res.status(404).json({ error: 'Plano não encontrado' });
+            }
+            updateData.planoId = data.planoId;
+        }
+        if (Object.keys(updateData).length === 0) {
+            return res.status(400).json({ error: 'Nenhum campo válido para atualizar' });
+        }
         const updated = await prisma.user.update({
             where: { id: userId },
-            data: { planoId: data.planoId },
+            data: updateData,
             select: {
                 id: true,
                 nomeCompleto: true,
                 email: true,
+                fotoPerfil: true,
+                membroDesde: true,
+                statusConta: true,
+                updatedAt: true,
+                telegramId: true,
+                telegramUsername: true,
                 plano: {
                     select: {
                         id: true,
@@ -56,10 +81,7 @@ router.put('/', authenticate, async (req, res) => {
                 }
             }
         });
-        res.json({
-            message: `Plano atualizado para ${updated.plano.nome}`,
-            user: updated
-        });
+        res.json(updated);
     }
     catch (error) {
         if (error instanceof z.ZodError) {
@@ -331,6 +353,7 @@ router.get('/', authenticate, async (req, res) => {
                 id: true,
                 nomeCompleto: true,
                 email: true,
+                fotoPerfil: true,
                 membroDesde: true,
                 statusConta: true,
                 updatedAt: true,
