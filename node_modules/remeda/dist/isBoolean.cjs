@@ -1,1 +1,0 @@
-const e=require(`./isBoolean-BrCTS0OR.cjs`);exports.isBoolean=e.isBoolean;

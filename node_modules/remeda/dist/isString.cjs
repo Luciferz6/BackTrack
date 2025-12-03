@@ -1,1 +1,0 @@
-const e=require(`./isString-C-6_AV1B.cjs`);exports.isString=e.isString;

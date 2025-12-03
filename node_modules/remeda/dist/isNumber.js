@@ -1,1 +1,0 @@
-import{isNumber as e}from"./isNumber-ccMQhOVD.js";export{e as isNumber};

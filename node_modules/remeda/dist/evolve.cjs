@@ -1,1 +1,0 @@
-require(`./lazyDataLastImpl-ClWpFgA_.cjs`),require(`./purry-CxXxOfsx.cjs`);const e=require(`./evolve-BVaN9-Dc.cjs`);exports.evolve=e.evolve;

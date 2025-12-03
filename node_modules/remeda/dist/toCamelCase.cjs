@@ -1,1 +1,0 @@
-require(`./words-B39hfVL5.cjs`);const e=require(`./toCamelCase-DgmMBf4C.cjs`);exports.toCamelCase=e.toCamelCase;

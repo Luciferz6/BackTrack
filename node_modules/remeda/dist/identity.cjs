@@ -1,1 +1,0 @@
-const e=require(`./identity-DJFC7uwq.cjs`);exports.identity=e.identity;

@@ -1,1 +1,0 @@
-const e=require(`./isFunction-BTU5yzxb.cjs`);exports.isFunction=e.isFunction;

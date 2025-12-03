@@ -1,1 +1,0 @@
-import{funnel as e}from"./funnel-yqgBeZ-Z.js";export{e as funnel};

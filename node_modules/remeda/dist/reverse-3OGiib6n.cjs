@@ -1,1 +1,0 @@
-const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e){return[...e].reverse()}Object.defineProperty(exports,`reverse`,{enumerable:!0,get:function(){return t}});

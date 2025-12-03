@@ -1,1 +1,0 @@
-function e(e,...t){return(...n)=>e(...n,...t)}Object.defineProperty(exports,`partialLastBind`,{enumerable:!0,get:function(){return e}});

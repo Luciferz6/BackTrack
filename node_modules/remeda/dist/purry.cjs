@@ -1,1 +1,0 @@
-require(`./lazyDataLastImpl-ClWpFgA_.cjs`);const e=require(`./purry-CxXxOfsx.cjs`);exports.purry=e.purry;

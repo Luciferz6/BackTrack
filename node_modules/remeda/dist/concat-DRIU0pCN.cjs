@@ -1,1 +1,0 @@
-const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>[...e,...t];Object.defineProperty(exports,`concat`,{enumerable:!0,get:function(){return t}});

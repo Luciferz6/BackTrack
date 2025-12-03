@@ -1,1 +1,0 @@
-require(`./lazyDataLastImpl-ClWpFgA_.cjs`),require(`./purry-CxXxOfsx.cjs`);const e=require(`./product-Cbf_1xHW.cjs`);exports.product=e.product;

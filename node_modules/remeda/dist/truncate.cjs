@@ -1,1 +1,0 @@
-const e=require(`./truncate-BnvsbuKI.cjs`);exports.truncate=e.truncate;

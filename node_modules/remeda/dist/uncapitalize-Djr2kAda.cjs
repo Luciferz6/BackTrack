@@ -1,1 +1,0 @@
-const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=e=>`${e[0]?.toLowerCase()??``}${e.slice(1)}`;Object.defineProperty(exports,`uncapitalize`,{enumerable:!0,get:function(){return t}});

@@ -1,1 +1,0 @@
-import{partialBind as e}from"./partialBind-DK6iOukn.js";export{e as partialBind};

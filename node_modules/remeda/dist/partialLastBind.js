@@ -1,1 +1,0 @@
-import{partialLastBind as e}from"./partialLastBind-CcSlfgVZ.js";export{e as partialLastBind};

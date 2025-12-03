@@ -1,1 +1,0 @@
-const e=require(`./isError-DJMlrF0D.cjs`);exports.isError=e.isError;

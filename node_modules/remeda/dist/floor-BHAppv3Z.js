@@ -1,2 +1,0 @@
-import{purry as e}from"./purry-DH9cw9sy.js";import{withPrecision as t}from"./withPrecision-D4S0Kwr9.js";function n(...n){return e(t(Math.floor),n)}export{n as floor};
-//# sourceMappingURL=floor-BHAppv3Z.js.map

@@ -1,1 +1,0 @@
-function e(e){return e instanceof Error}Object.defineProperty(exports,`isError`,{enumerable:!0,get:function(){return e}});

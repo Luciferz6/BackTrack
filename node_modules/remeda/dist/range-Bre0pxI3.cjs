@@ -1,1 +1,0 @@
-const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}function n(e,t){let n=[];for(let r=e;r<t;r++)n.push(r);return n}Object.defineProperty(exports,`range`,{enumerable:!0,get:function(){return t}});

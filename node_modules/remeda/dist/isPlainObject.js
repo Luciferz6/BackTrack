@@ -1,1 +1,0 @@
-import{isPlainObject as e}from"./isPlainObject-Crc4dM9-.js";export{e as isPlainObject};

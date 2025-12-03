@@ -1,2 +1,0 @@
-import{purry as e}from"./purry-DH9cw9sy.js";function t(...t){return e(n,t,r)}function n(e,t){return e.forEach(t),e}const r=e=>(t,n,r)=>(e(t,n,r),{done:!1,hasNext:!0,next:t});export{t as forEach};
-//# sourceMappingURL=forEach-y9rIgINo.js.map

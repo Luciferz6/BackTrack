@@ -1,1 +1,0 @@
-const e=require(`./isPlainObject-BNN1TBy8.cjs`);exports.isPlainObject=e.isPlainObject;

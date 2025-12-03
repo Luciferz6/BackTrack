@@ -1,1 +1,0 @@
-import{randomInteger as e}from"./randomInteger-_2VFJqbV.js";export{e as randomInteger};

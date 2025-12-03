@@ -1,1 +1,0 @@
-const e=require(`./conditional-BXWJJwJv.cjs`);exports.conditional=e.conditional;

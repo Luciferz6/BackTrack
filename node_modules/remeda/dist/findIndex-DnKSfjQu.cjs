@@ -1,1 +1,0 @@
-const e=require(`./purry-CxXxOfsx.cjs`);function t(...t){return e.purry(n,t)}const n=(e,t)=>e.findIndex(t);Object.defineProperty(exports,`findIndex`,{enumerable:!0,get:function(){return t}});

@@ -1,1 +1,0 @@
-const e=require(`./isDate-DTCQOsum.cjs`);exports.isDate=e.isDate;

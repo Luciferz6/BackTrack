@@ -1,1 +1,0 @@
-require(`./lazyDataLastImpl-ClWpFgA_.cjs`),require(`./purry-CxXxOfsx.cjs`);const e=require(`./isShallowEqual-Csn8sXDA.cjs`);exports.isShallowEqual=e.isShallowEqual;

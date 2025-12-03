@@ -1,1 +1,0 @@
-const e=require(`./purryOrderRules-BygASFbe.cjs`);function t(...t){return e.purryOrderRules(n,t)}const n=(e,t)=>[...e].sort(t);Object.defineProperty(exports,`sortBy`,{enumerable:!0,get:function(){return t}});

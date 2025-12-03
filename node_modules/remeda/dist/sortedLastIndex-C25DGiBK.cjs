@@ -1,1 +1,0 @@
-const e=require(`./purry-CxXxOfsx.cjs`),t=require(`./binarySearchCutoffIndex-DEUMiOoK.cjs`);function n(...t){return e.purry(r,t)}const r=(e,n)=>t.binarySearchCutoffIndex(e,e=>e<=n);Object.defineProperty(exports,`sortedLastIndex`,{enumerable:!0,get:function(){return n}});
