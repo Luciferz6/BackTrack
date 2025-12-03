@@ -44,7 +44,6 @@ model Bankroll {
   usuarioId  String
   nome       String
   descricao  String?
-  cor        String?                @default("#2563eb")
   status     String                 @default("Ativa")
   ePadrao    Boolean                @default(false)
   criadoEm   DateTime               @default(now())
