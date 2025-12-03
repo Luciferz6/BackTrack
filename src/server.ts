@@ -32,6 +32,9 @@ app.use(corsMiddleware);
 app.use(express.json({ limit: '10mb' })); // Limite de tamanho do body
 app.use(cookieParser()); // Essencial para httpOnly cookies
 
+// Servir arquivos estáticos da pasta uploads
+app.use('/uploads', express.static('uploads'));
+
 // Desabilitar cache para todas as rotas de API
 app.use('/api', (req, res, next) => {
   res.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');

@@ -408,6 +408,7 @@ router.delete('/all', authenticateToken, async (req: AuthRequest, res) => {
 router.get('/recentes', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
+    const { bancaId } = req.query;
 
     const bancas = await prisma.bankroll.findMany({
       where: { usuarioId: userId },
@@ -415,13 +416,16 @@ router.get('/recentes', authenticateToken, async (req: AuthRequest, res) => {
     });
 
     const bancaIds = bancas.map((b: { id: string }) => b.id);
+    const filteredBancaIds = typeof bancaId === 'string' && bancaId
+      ? bancaIds.filter((id: string) => id === bancaId)
+      : bancaIds;
 
-    if (bancaIds.length === 0) {
+    if (filteredBancaIds.length === 0) {
       return res.json([]);
     }
 
     const apostasRecentes = await prisma.bet.findMany({
-      where: { bancaId: { in: bancaIds } },
+      where: { bancaId: { in: filteredBancaIds } },
       include: {
         banca: {
           select: {

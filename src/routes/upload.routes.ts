@@ -1,91 +1,161 @@
-import express from "express";
-import multer from "multer";
-import { authenticateToken, AuthRequest } from "../middleware/auth.middleware.js";
-import dotenv from "dotenv";
-import { processTicket } from "../services/ticketProcessor.js";
-import { log } from "../utils/logger.js";
-
-dotenv.config();
+import express from 'express';
+import multer from 'multer';
+import sharp from 'sharp';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
+import { authenticate } from '../middleware/auth.js';
+import { prisma } from '../lib/prisma.js';
+import { log } from '../utils/logger.js';
 
 const router = express.Router();
 
+// Obter __dirname em ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Configuração do multer para upload em memória
+const storage = multer.memoryStorage();
+
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: {
-    fileSize: 10 * 1024 * 1024
+    fileSize: 5 * 1024 * 1024 // Limite de 5MB
   },
   fileFilter: (req, file, cb) => {
-    if (file.mimetype.startsWith("image/")) {
+    // Aceitar apenas imagens
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error("Apenas imagens são permitidas"));
+      cb(new Error('Apenas imagens JPG, PNG ou WEBP são permitidas'));
     }
   }
 });
 
-router.post("/bilhete", authenticateToken, (req, res, next) => {
-  upload.single("image")(req, res, (err) => {
-    if (err instanceof multer.MulterError) {
-      if (err.code === "LIMIT_FILE_SIZE") {
-        return res.status(400).json({ error: "Arquivo muito grande. Tamanho máximo: 10MB" });
-      }
-      return res.status(400).json({ error: "Erro ao fazer upload do arquivo", message: err.message });
-    }
-    if (err) {
-      return res.status(400).json({ error: err.message || "Erro ao processar arquivo" });
-    }
-    next();
-  });
-}, async (req: AuthRequest, res) => {
+// POST /api/upload/perfil - Upload de foto de perfil
+router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ error: "Nenhuma imagem foi enviada" });
+      return res.status(400).json({ error: 'Nenhum arquivo enviado' });
     }
 
-    const base64Image = req.file.buffer.toString("base64");
-    const mimeType = req.file.mimetype;
-    const ocrText = typeof req.body?.ocrText === "string" ? req.body.ocrText.trim() : "";
+    const userId = req.user!.userId;
+    
+    // Gerar nome único para o arquivo
+    const filename = `perfil-${userId}-${Date.now()}.webp`;
+    const uploadsDir = path.join(__dirname, '../../uploads/perfil');
+    const filepath = path.join(uploadsDir, filename);
 
-    const data = await processTicket({ base64Image, mimeType, ocrText });
+    // Garantir que o diretório existe
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
 
-    return res.json({
-      success: true,
-      data
+    // Processar e redimensionar a imagem com sharp
+    await sharp(req.file.buffer)
+      .resize(300, 300, {
+        fit: 'cover',
+        position: 'center'
+      })
+      .webp({ quality: 85 })
+      .toFile(filepath);
+
+    // Construir a URL da imagem
+    const baseUrl = process.env.API_URL || `http://localhost:${process.env.PORT || 3001}`;
+    const fotoUrl = `${baseUrl}/uploads/perfil/${filename}`;
+
+    // Buscar foto antiga para deletar
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fotoPerfil: true }
     });
-  } catch (error) {
-    log.error(error, "Erro inesperado ao processar bilhete");
 
-    if (res.headersSent) {
-      return;
+    // Deletar foto antiga se existir
+    if (user?.fotoPerfil) {
+      try {
+        const oldFilename = user.fotoPerfil.split('/').pop();
+        if (oldFilename) {
+          const oldFilepath = path.join(uploadsDir, oldFilename);
+          if (fs.existsSync(oldFilepath)) {
+            fs.unlinkSync(oldFilepath);
+            log.info({ userId, oldFile: oldFilename }, 'Foto de perfil antiga deletada');
+          }
+        }
+      } catch (error) {
+        log.error(error, 'Erro ao deletar foto antiga');
+      }
     }
 
-    // Extract more detailed error information
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    const isDevelopment = process.env.NODE_ENV !== "production";
-
-    // Check for specific error types
-    if (errorMessage.includes("API_KEY") || errorMessage.includes("não configurada")) {
-      return res.status(500).json({
-        error: "Configuração inválida",
-        message: "As chaves de API necessárias para processar bilhetes não estão configuradas no servidor.",
-        details: isDevelopment ? errorMessage : undefined
-      });
-    }
-
-    if (errorMessage.includes("Nenhum provedor de IA configurado")) {
-      return res.status(500).json({
-        error: "Configuração inválida",
-        message: "Nenhum provedor de IA (Gemini ou DeepSeek) está configurado no servidor.",
-        details: isDevelopment ? errorMessage : undefined
-      });
-    }
-
-    // Generic error response
-    res.status(500).json({
-      error: "Erro ao processar bilhete",
-      message: "Não foi possível ler o bilhete. Tente novamente em instantes.",
-      details: isDevelopment ? errorMessage : undefined
+    // Atualizar URL da foto no banco de dados
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fotoPerfil: fotoUrl }
     });
+
+    log.info({ userId, filename }, 'Foto de perfil enviada com sucesso');
+
+    res.json({
+      message: 'Foto de perfil atualizada com sucesso',
+      url: fotoUrl
+    });
+  } catch (error: any) {
+    log.error(error, 'Erro ao fazer upload da foto');
+    
+    if (error.message.includes('Apenas imagens')) {
+      return res.status(400).json({ error: error.message });
+    }
+    
+    if (error.code === 'LIMIT_FILE_SIZE') {
+      return res.status(400).json({ error: 'Arquivo muito grande. O tamanho máximo é 5MB' });
+    }
+    
+    res.status(500).json({ error: 'Erro ao processar imagem' });
+  }
+});
+
+// DELETE /api/upload/perfil - Remover foto de perfil
+router.delete('/perfil', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+
+    // Buscar foto atual
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { fotoPerfil: true }
+    });
+
+    if (!user?.fotoPerfil) {
+      return res.status(404).json({ error: 'Nenhuma foto de perfil encontrada' });
+    }
+
+    // Deletar arquivo físico
+    try {
+      const filename = user.fotoPerfil.split('/').pop();
+      if (filename) {
+        const uploadsDir = path.join(__dirname, '../../uploads/perfil');
+        const filepath = path.join(uploadsDir, filename);
+        if (fs.existsSync(filepath)) {
+          fs.unlinkSync(filepath);
+          log.info({ userId, filename }, 'Foto de perfil deletada do sistema de arquivos');
+        }
+      }
+    } catch (error) {
+      log.error(error, 'Erro ao deletar arquivo físico');
+    }
+
+    // Remover URL do banco de dados
+    await prisma.user.update({
+      where: { id: userId },
+      data: { fotoPerfil: null }
+    });
+
+    log.info({ userId }, 'Foto de perfil removida com sucesso');
+
+    res.json({ message: 'Foto de perfil removida com sucesso' });
+  } catch (error: any) {
+    log.error(error, 'Erro ao remover foto de perfil');
+    res.status(500).json({ error: 'Erro ao remover foto de perfil' });
   }
 });
 

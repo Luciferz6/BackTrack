@@ -33,7 +33,6 @@ SELECT
     b.nome as banca_nome,
     b.descricao as banca_descricao,
     b.status as banca_status,
-    b.cor as banca_cor,
     b."ePadrao" as banca_padrao,
     b."criadoEm" as banca_criada_em,
     COUNT(DISTINCT bet.id) as total_apostas,
@@ -44,7 +43,7 @@ FROM users u
 INNER JOIN bankrolls b ON b."usuarioId" = u.id
 LEFT JOIN bets bet ON bet."bancaId" = b.id
 LEFT JOIN financial_transactions ft ON ft."bancaId" = b.id
-GROUP BY u.id, u."nomeCompleto", b.id, b.nome, b.descricao, b.status, b.cor, b."ePadrao", b."criadoEm";
+GROUP BY u.id, u."nomeCompleto", b.id, b.nome, b.descricao, b.status, b."ePadrao", b."criadoEm";
 
 -- View: Apostas do usuário (através das bancas)
 CREATE OR REPLACE VIEW "user_bets" AS

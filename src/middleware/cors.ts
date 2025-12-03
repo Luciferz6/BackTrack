@@ -1,34 +1,47 @@
 import cors, { CorsOptions } from 'cors';
 import { log } from '../utils/logger.js';
 
-const isDevelopment = process.env.NODE_ENV === 'development';
-const isProduction = process.env.NODE_ENV === 'production';
+const nodeEnv = process.env.NODE_ENV ?? 'development';
+const isProduction = nodeEnv === 'production';
+const isDevelopment = !isProduction;
+const alwaysIncludeDevOrigins = process.env.ALLOW_DEV_ORIGINS !== 'false';
+
+const DEFAULT_DEV_ORIGINS = (
+  process.env.DEV_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173'
+)
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 
 // Lista de origens permitidas em produção
 // Pode ser configurada via variável de ambiente separada por vírgulas
 // Exemplo: ALLOWED_ORIGINS=http://localhost:5173,https://app.exemplo.com
 const getAllowedOrigins = (): string[] | null => {
   if (isDevelopment) {
-    // Em desenvolvimento, permitir qualquer origem
-    return null; // null = permitir qualquer origem
+    // Em desenvolvimento permitir qualquer origem
+    return null;
   }
 
-  // Em produção, usar lista branca
   const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
-  
+
   if (!allowedOriginsEnv) {
-    // Se não configurado em produção, permitir qualquer origem mas avisar
     log.warn('⚠️  PRODUÇÃO: ALLOWED_ORIGINS não configurado. Permitindo qualquer origem.');
     log.warn('⚠️  Configure ALLOWED_ORIGINS no .env para maior segurança em produção.');
-    return null; // null = permitir qualquer origem
+    return null;
   }
 
-  // Separar por vírgula e limpar espaços
-  const origins = allowedOriginsEnv
-    .split(',')
-    .map(origin => origin.trim())
-    .filter(origin => origin.length > 0);
-  
+  const originsSet = new Set(
+    allowedOriginsEnv
+      .split(',')
+      .map((origin) => origin.trim())
+      .filter((origin) => origin.length > 0)
+  );
+
+  if (alwaysIncludeDevOrigins) {
+    DEFAULT_DEV_ORIGINS.forEach((origin) => originsSet.add(origin));
+  }
+
+  const origins = [...originsSet];
   log.info({ origins }, 'CORS configurado com lista branca');
   return origins;
 };

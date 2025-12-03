@@ -91,7 +91,6 @@ async function showAllUsersData() {
           console.log(`\n   ${index + 1}. ${banca.nome} ${banca.ePadrao ? '(Padrão)' : ''}`);
           console.log(`      ID: ${banca.id}`);
           console.log(`      Status: ${banca.status}`);
-          console.log(`      Cor: ${banca.cor || '#2563eb'}`);
           if (banca.descricao) {
             console.log(`      Descrição: ${banca.descricao}`);
           }

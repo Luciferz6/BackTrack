@@ -376,6 +376,7 @@ router.get('/', authenticate, async (req, res) => {
         id: true,
         nomeCompleto: true,
         email: true,
+        fotoPerfil: true,
         membroDesde: true,
         statusConta: true,
         updatedAt: true,
