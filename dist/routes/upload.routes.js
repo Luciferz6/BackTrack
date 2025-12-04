@@ -4,11 +4,13 @@ import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
+import FormData from 'form-data';
+import fetch from 'node-fetch';
 import { authenticate } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { log } from '../utils/logger.js';
-import { processTicket } from '../services/ticketProcessor.js';
 const router = express.Router();
+const BILHETE_TRACKER_URL = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
 // Obter __dirname em ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,25 +107,41 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
         if (!req.file) {
             return res.status(400).json({ success: false, error: 'Nenhuma imagem enviada' });
         }
-        const mimeType = req.file.mimetype;
-        const base64Image = req.file.buffer.toString('base64');
         const ocrText = typeof req.body?.ocrText === 'string' ? req.body.ocrText : undefined;
-        const data = await processTicket({
-            base64Image,
-            mimeType,
-            ocrText,
+        const formData = new FormData();
+        formData.append('image', req.file.buffer, {
+            filename: req.file.originalname || `bilhete-${Date.now()}.webp`,
+            contentType: req.file.mimetype,
         });
-        log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via upload');
-        return res.json({
-            success: true,
-            data,
+        if (ocrText) {
+            formData.append('ocrText', ocrText);
+        }
+        const controller = new AbortController();
+        req.on('close', () => controller.abort());
+        const response = await fetch(`${BILHETE_TRACKER_URL}/api/upload/bilhete`, {
+            method: 'POST',
+            body: formData,
+            headers: formData.getHeaders(),
+            signal: controller.signal,
         });
+        const payload = (await response
+            .json()
+            .catch(() => ({ success: false, error: 'Resposta inválida do serviço de bilhetes' })));
+        if (!response.ok || payload?.success === false) {
+            const message = payload?.error ||
+                payload?.message ||
+                `Serviço de bilhetes retornou status ${response.status}`;
+            log.warn({ status: response.status }, 'Falha ao processar bilhete via serviço externo');
+            return res.status(response.status).json({ success: false, error: message });
+        }
+        log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via serviço externo');
+        return res.json(payload);
     }
     catch (error) {
         log.error(error, 'Erro ao processar bilhete via upload');
         const message = error?.message ||
             (typeof error === 'string' ? error : 'Erro ao processar bilhete. Tente novamente mais tarde.');
-        const statusCode = message.includes('nenhum provedor') || message.includes('não configurada') ? 503 : 500;
+        const statusCode = error?.name === 'AbortError' ? 499 : 502;
         return res.status(statusCode).json({
             success: false,
             error: message,
