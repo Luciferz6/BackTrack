@@ -10,7 +10,8 @@ import { authenticate } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { log } from '../utils/logger.js';
 const router = express.Router();
-const BILHETE_TRACKER_URL = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
+const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
+const BILHETE_TRACKER_UPLOAD_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/scan-ticket/upload`;
 // Obter __dirname em ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -124,7 +125,7 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
                 controller.abort();
             }
         });
-        const response = await fetch(`${BILHETE_TRACKER_URL}/api/upload/bilhete`, {
+        const response = await fetch(BILHETE_TRACKER_UPLOAD_ENDPOINT, {
             method: 'POST',
             body: formData,
             headers: formData.getHeaders(),
