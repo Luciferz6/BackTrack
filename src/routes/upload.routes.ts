@@ -127,6 +127,7 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
 
 // POST /api/upload/bilhete - Processar bilhete usando IA
 router.post('/bilhete', authenticate, upload.single('image'), async (req, res) => {
+  let abortTimeout: NodeJS.Timeout | null = null;
   try {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'Nenhuma imagem enviada' });
@@ -144,7 +145,12 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
     }
 
     const controller = new AbortController();
-    req.on('close', () => controller.abort());
+    abortTimeout = setTimeout(() => controller.abort(), 90_000); // 90s timeout para evitar requests presos
+    req.on('close', () => {
+      if (!res.writableEnded) {
+        controller.abort();
+      }
+    });
 
     const response = await fetch(`${BILHETE_TRACKER_URL}/api/upload/bilhete`, {
       method: 'POST',
@@ -176,12 +182,17 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
       error?.message ||
       (typeof error === 'string' ? error : 'Erro ao processar bilhete. Tente novamente mais tarde.');
 
-    const statusCode = error?.name === 'AbortError' ? 499 : 502;
+    const abortedByClient = req.aborted;
+    const statusCode = abortedByClient ? 499 : error?.name === 'AbortError' ? 504 : 502;
 
     return res.status(statusCode).json({
       success: false,
       error: message,
     });
+  } finally {
+    if (abortTimeout) {
+      clearTimeout(abortTimeout);
+    }
   }
 });
 
