@@ -7,6 +7,7 @@ import fs from 'fs';
 import { authenticate } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { log } from '../utils/logger.js';
+import { processTicket } from '../services/ticketProcessor.js';
 const router = express.Router();
 // Obter __dirname em ES modules
 const __filename = fileURLToPath(import.meta.url);
@@ -96,6 +97,37 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
             return res.status(400).json({ error: 'Arquivo muito grande. O tamanho máximo é 5MB' });
         }
         res.status(500).json({ error: 'Erro ao processar imagem' });
+    }
+});
+// POST /api/upload/bilhete - Processar bilhete usando IA
+router.post('/bilhete', authenticate, upload.single('image'), async (req, res) => {
+    try {
+        if (!req.file) {
+            return res.status(400).json({ success: false, error: 'Nenhuma imagem enviada' });
+        }
+        const mimeType = req.file.mimetype;
+        const base64Image = req.file.buffer.toString('base64');
+        const ocrText = typeof req.body?.ocrText === 'string' ? req.body.ocrText : undefined;
+        const data = await processTicket({
+            base64Image,
+            mimeType,
+            ocrText,
+        });
+        log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via upload');
+        return res.json({
+            success: true,
+            data,
+        });
+    }
+    catch (error) {
+        log.error(error, 'Erro ao processar bilhete via upload');
+        const message = error?.message ||
+            (typeof error === 'string' ? error : 'Erro ao processar bilhete. Tente novamente mais tarde.');
+        const statusCode = message.includes('nenhum provedor') || message.includes('não configurada') ? 503 : 500;
+        return res.status(statusCode).json({
+            success: false,
+            error: message,
+        });
     }
 });
 // DELETE /api/upload/perfil - Remover foto de perfil
