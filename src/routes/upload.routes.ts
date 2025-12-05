@@ -136,10 +136,41 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
 
     const ocrText = typeof req.body?.ocrText === 'string' ? req.body.ocrText : undefined;
 
+    let processedBuffer = req.file.buffer;
+    let processedMime = req.file.mimetype;
+    let processedFilename = req.file.originalname || `bilhete-${Date.now()}`;
+
+    try {
+      const optimized = await sharp(req.file.buffer)
+        .rotate()
+        .resize({
+          width: 1800,
+          height: 1800,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 90, effort: 4 })
+        .toBuffer();
+
+      log.info(
+        {
+          originalSize: req.file.size,
+          optimizedSize: optimized.length,
+        },
+        'Imagem de bilhete otimizada para upload'
+      );
+
+      processedBuffer = optimized;
+      processedMime = 'image/webp';
+      processedFilename = `${processedFilename.replace(/\.[^/.]+$/, '')}.webp`;
+    } catch (imageError) {
+      log.warn(imageError, 'Falha ao otimizar imagem de bilhete, seguindo com buffer original');
+    }
+
     const formData = new FormData();
-    formData.append('image', req.file.buffer, {
-      filename: req.file.originalname || `bilhete-${Date.now()}.webp`,
-      contentType: req.file.mimetype,
+    formData.append('image', processedBuffer, {
+      filename: processedFilename || `bilhete-${Date.now()}.webp`,
+      contentType: processedMime,
     });
     if (ocrText) {
       formData.append('ocrText', ocrText);
