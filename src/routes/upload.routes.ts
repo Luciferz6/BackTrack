@@ -163,8 +163,8 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
       processedBuffer = optimized;
       processedMime = 'image/webp';
       processedFilename = `${processedFilename.replace(/\.[^/.]+$/, '')}.webp`;
-    } catch (imageError) {
-      log.warn(imageError, 'Falha ao otimizar imagem de bilhete, seguindo com buffer original');
+    } catch (imageError: unknown) {
+      log.warn({ err: imageError }, 'Falha ao otimizar imagem de bilhete, seguindo com buffer original');
     }
 
     const formData = new FormData();
@@ -207,15 +207,19 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
     log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via serviço externo');
 
     return res.json(payload);
-  } catch (error: any) {
-    log.error(error, 'Erro ao processar bilhete via upload');
+  } catch (error: unknown) {
+    log.error({ err: error }, 'Erro ao processar bilhete via upload');
 
     const message =
-      error?.message ||
-      (typeof error === 'string' ? error : 'Erro ao processar bilhete. Tente novamente mais tarde.');
+      error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
+          : 'Erro ao processar bilhete. Tente novamente mais tarde.';
 
     const abortedByClient = req.aborted;
-    const statusCode = abortedByClient ? 499 : error?.name === 'AbortError' ? 504 : 502;
+    const isAbortError = error instanceof Error && error.name === 'AbortError';
+    const statusCode = abortedByClient ? 499 : isAbortError ? 504 : 502;
 
     return res.status(statusCode).json({
       success: false,
