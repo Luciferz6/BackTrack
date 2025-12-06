@@ -53,7 +53,7 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
     }
 
     const userId = req.user!.userId;
-    
+
     // Gerar nome único para o arquivo
     const filename = `perfil-${userId}-${Date.now()}.webp`;
     const uploadsDir = path.join(__dirname, '../../uploads/perfil');
@@ -113,15 +113,15 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
     });
   } catch (error: any) {
     log.error(error, 'Erro ao fazer upload da foto');
-    
+
     if (error.message.includes('Apenas imagens')) {
       return res.status(400).json({ error: error.message });
     }
-    
+
     if (error.code === 'LIMIT_FILE_SIZE') {
       return res.status(400).json({ error: 'Arquivo muito grande. O tamanho máximo é 5MB' });
     }
-    
+
     res.status(500).json({ error: 'Erro ao processar imagem' });
   }
 });
@@ -206,7 +206,14 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
 
     log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via serviço externo');
 
-    return res.json(payload);
+    // Map BilheteTracker response format (ticket) to frontend format (data)
+    const frontendResponse = {
+      success: payload.success,
+      data: (payload as any).ticket, // BilheteTracker returns 'ticket', frontend expects 'data'
+      message: payload.message
+    };
+
+    return res.json(frontendResponse);
   } catch (error: unknown) {
     log.error({ err: error }, 'Erro ao processar bilhete via upload');
 
