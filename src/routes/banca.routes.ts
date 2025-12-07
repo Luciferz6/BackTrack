@@ -42,7 +42,8 @@ export const updateBancaSchema = z.object({
   nome: z.string().min(1, 'Nome é obrigatório').max(100, 'Nome muito longo').optional(),
   descricao: z.string().max(500, 'Descrição muito longa').optional(),
   status: z.enum(['Ativa', 'Inativa']).optional(),
-  ePadrao: z.boolean().optional()
+  ePadrao: z.boolean().optional(),
+  saldoInicial: saldoInicialSchema
 });
 
 export const sanitizeBankroll = <T extends Record<string, unknown>>(
@@ -101,7 +102,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
 router.get('/', authenticateToken, async (req: AuthRequest, res) => {
   try {
     const userId = req.userId!;
-    
+
     const bancas = await prisma.bankroll.findMany({
       where: { usuarioId: userId },
       include: {
@@ -151,13 +152,13 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
       const totalDepositado = transacoes
         .filter(t => t.tipo === 'Depósito')
         .reduce((sum, t) => sum + t.valor, 0);
-      
+
       const totalSacado = transacoes
         .filter(t => t.tipo === 'Saque')
         .reduce((sum, t) => sum + t.valor, 0);
 
       const totalApostado = apostas.reduce((sum, a) => sum + a.valorApostado, 0);
-      
+
       // Resultado de Apostas (apenas concluídas)
       const apostasConcluidas = apostas.filter(a => isApostaConcluida(a.status));
       const resultadoApostas = apostasConcluidas.reduce((sum, a) => {
@@ -216,7 +217,7 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       status?: string;
       ePadrao?: boolean;
     } = {};
-    
+
     if (data.nome) {
       updateData.nome = data.nome;
     }
@@ -234,6 +235,46 @@ router.put('/:id', authenticateToken, async (req: AuthRequest, res) => {
       where: { id },
       data: updateData
     });
+
+    // Handle saldoInicial update
+    if (typeof data.saldoInicial === 'number') {
+      // Find existing initial balance transaction
+      const existingTransaction = await prisma.financialTransaction.findFirst({
+        where: {
+          bancaId: id,
+          casaDeAposta: 'Saldo inicial'
+        }
+      });
+
+      if (data.saldoInicial > 0) {
+        if (existingTransaction) {
+          // Update existing transaction
+          await prisma.financialTransaction.update({
+            where: { id: existingTransaction.id },
+            data: {
+              valor: data.saldoInicial,
+              observacao: 'Saldo inicial atualizado'
+            }
+          });
+        } else {
+          // Create new initial balance transaction
+          await prisma.financialTransaction.create({
+            data: {
+              bancaId: id,
+              tipo: 'Depósito',
+              casaDeAposta: 'Saldo inicial',
+              valor: data.saldoInicial,
+              observacao: 'Saldo inicial configurado'
+            }
+          });
+        }
+      } else if (data.saldoInicial === 0 && existingTransaction) {
+        // Remove initial balance transaction if set to 0
+        await prisma.financialTransaction.delete({
+          where: { id: existingTransaction.id }
+        });
+      }
+    }
 
     res.json(sanitizeBankroll(updated));
   } catch (error) {
@@ -281,7 +322,7 @@ router.get('/:id/compartilhar', authenticateToken, async (req: AuthRequest, res)
 
     // Gerar código único para compartilhamento
     const codigoCompartilhamento = Buffer.from(`${id}-${Date.now()}`).toString('base64');
-    
+
     res.json({
       codigo: codigoCompartilhamento,
       link: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/banca/${codigoCompartilhamento}`
