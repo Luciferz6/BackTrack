@@ -76,6 +76,8 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
         // II. MÉTRICAS DE PERFORMANCE
         // 1. Taxa de Acerto (Win Rate) - APENAS apostas concluídas
         const apostasGanhas = apostasConcluidas.filter(a => isApostaGanha(a.status));
+        const apostasPerdidas = apostasConcluidas.length - apostasGanhas.length;
+        const apostasPendentes = apostas.length - apostasConcluidas.length;
         const taxaAcerto = apostasConcluidas.length > 0
             ? (apostasGanhas.length / apostasConcluidas.length) * 100
             : 0;
@@ -214,7 +216,11 @@ router.get('/dashboard', authenticateToken, async (req, res) => {
                 totalInvestido: Number(totalInvestido.toFixed(2)),
                 totalDepositado: Number(totalDepositado.toFixed(2)),
                 totalSacado: Number(totalSacado.toFixed(2)),
-                saldoBanca: Number(saldoBanca.toFixed(2))
+                saldoBanca: Number(saldoBanca.toFixed(2)),
+                totalApostas: apostas.length,
+                apostasGanhas: apostasGanhas.length,
+                apostasPerdidas: Math.max(apostasPerdidas, 0),
+                apostasPendentes: Math.max(apostasPendentes, 0)
             },
             lucroDiario: lucroDiarioArray,
             lucroAcumulado: lucroAcumuladoArray,

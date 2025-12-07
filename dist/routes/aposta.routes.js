@@ -14,7 +14,7 @@ const createApostaSchema = z.object({
     jogo: z.string().min(1).max(200, 'Nome do jogo muito longo'),
     torneio: z.string().max(200, 'Nome do torneio muito longo').optional(),
     pais: z.string().max(100, 'Nome do país muito longo').optional(),
-    mercado: z.string().min(1).max(100, 'Nome do mercado muito longo'),
+    mercado: z.string().min(1),
     tipoAposta: z.string().min(1).max(100, 'Tipo de aposta muito longo'),
     valorApostado: z.number().positive('Valor deve ser positivo').max(1000000, 'Valor muito alto'),
     odd: z.number().positive('Odd deve ser positiva').max(1000, 'Odd muito alta'),
@@ -31,7 +31,7 @@ const updateApostaSchema = z.object({
     jogo: z.string().min(1).max(200, 'Nome do jogo muito longo').optional(),
     torneio: z.string().max(200, 'Nome do torneio muito longo').optional(),
     pais: z.string().max(100, 'Nome do país muito longo').optional(),
-    mercado: z.string().min(1).max(100, 'Nome do mercado muito longo').optional(),
+    mercado: z.string().min(1).optional(),
     tipoAposta: z.string().min(1).max(100, 'Tipo de aposta muito longo').optional(),
     valorApostado: z.number().positive('Valor deve ser positivo').max(1000000, 'Valor muito alto').optional(),
     odd: z.number().positive('Odd deve ser positiva').max(1000, 'Odd muito alta').optional(),
@@ -346,16 +346,20 @@ router.delete('/all', authenticateToken, async (req, res) => {
 router.get('/recentes', authenticateToken, async (req, res) => {
     try {
         const userId = req.userId;
+        const { bancaId } = req.query;
         const bancas = await prisma.bankroll.findMany({
             where: { usuarioId: userId },
             select: { id: true }
         });
         const bancaIds = bancas.map((b) => b.id);
-        if (bancaIds.length === 0) {
+        const filteredBancaIds = typeof bancaId === 'string' && bancaId
+            ? bancaIds.filter((id) => id === bancaId)
+            : bancaIds;
+        if (filteredBancaIds.length === 0) {
             return res.json([]);
         }
         const apostasRecentes = await prisma.bet.findMany({
-            where: { bancaId: { in: bancaIds } },
+            where: { bancaId: { in: filteredBancaIds } },
             include: {
                 banca: {
                     select: {

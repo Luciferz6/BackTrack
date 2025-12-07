@@ -17,7 +17,7 @@ const createApostaSchema = z.object({
   jogo: z.string().min(1).max(200, 'Nome do jogo muito longo'),
   torneio: z.string().max(200, 'Nome do torneio muito longo').optional(),
   pais: z.string().max(100, 'Nome do país muito longo').optional(),
-  mercado: z.string().min(1).max(100, 'Nome do mercado muito longo'),
+  mercado: z.string().min(1),
   tipoAposta: z.string().min(1).max(100, 'Tipo de aposta muito longo'),
   valorApostado: z.number().positive('Valor deve ser positivo').max(1000000, 'Valor muito alto'),
   odd: z.number().positive('Odd deve ser positiva').max(1000, 'Odd muito alta'),
@@ -35,7 +35,7 @@ const updateApostaSchema = z.object({
   jogo: z.string().min(1).max(200, 'Nome do jogo muito longo').optional(),
   torneio: z.string().max(200, 'Nome do torneio muito longo').optional(),
   pais: z.string().max(100, 'Nome do país muito longo').optional(),
-  mercado: z.string().min(1).max(100, 'Nome do mercado muito longo').optional(),
+  mercado: z.string().min(1).optional(),
   tipoAposta: z.string().min(1).max(100, 'Tipo de aposta muito longo').optional(),
   valorApostado: z.number().positive('Valor deve ser positivo').max(1000000, 'Valor muito alto').optional(),
   odd: z.number().positive('Odd deve ser positiva').max(1000, 'Odd muito alta').optional(),
@@ -161,7 +161,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     // Se bancaId específico foi fornecido, filtrar apenas essa banca
-    const filteredBancaIds = bancaId && typeof bancaId === 'string' 
+    const filteredBancaIds = bancaId && typeof bancaId === 'string'
       ? bancaIds.filter((id: string) => id === bancaId)
       : bancaIds;
 
@@ -238,7 +238,7 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
       casaDeAposta?: string;
       retornoObtido?: number | null;
     } = {};
-    
+
     if (data.bancaId) updateData.bancaId = data.bancaId;
     if (data.esporte) updateData.esporte = data.esporte;
     if (data.jogo) updateData.jogo = data.jogo;
@@ -297,7 +297,7 @@ router.get('/resumo', authenticateToken, async (req: AuthRequest, res) => {
     const totalApostas = apostas.length;
     // Total Investido: todas as apostas (concluídas ou pendentes)
     const totalInvestido = apostas.reduce((sum: number, a: any) => sum + a.valorApostado, 0);
-    
+
     // Resultado de Apostas: apenas concluídas
     const apostasConcluidas = apostas.filter((a: any) => isApostaConcluida(a.status));
     const resultadoApostas = apostasConcluidas.reduce((sum: number, a: any) => {
@@ -354,11 +354,11 @@ router.delete('/:id', authenticateToken, async (req: AuthRequest, res) => {
       where: { id }
     });
 
-  emitBetEvent({
-    userId,
-    type: 'deleted',
-    payload: { betId: id }
-  });
+    emitBetEvent({
+      userId,
+      type: 'deleted',
+      payload: { betId: id }
+    });
 
     res.json({ message: 'Aposta deletada com sucesso' });
   } catch (error) {
@@ -445,9 +445,9 @@ router.get('/recentes', authenticateToken, async (req: AuthRequest, res) => {
         id: aposta.id,
         evento: `${aposta.jogo}${aposta.torneio ? ` - ${aposta.torneio}` : ''}`,
         odd: aposta.odds?.toString() || aposta.odd?.toString() || '-',
-        status: aposta.status === 'Ganha' || aposta.status === 'Meio Ganha' ? 'GANHOU' : 
-                aposta.status === 'Perdida' || aposta.status === 'Meio Perdida' ? 'PERDEU' : 
-                aposta.status,
+        status: aposta.status === 'Ganha' || aposta.status === 'Meio Ganha' ? 'GANHOU' :
+          aposta.status === 'Perdida' || aposta.status === 'Meio Perdida' ? 'PERDEU' :
+            aposta.status,
         lucro: resultado,
         dataJogo: aposta.dataJogo,
         esporte: aposta.esporte,

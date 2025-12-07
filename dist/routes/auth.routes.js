@@ -51,8 +51,7 @@ router.post('/register', sensitiveRateLimiter, async (req, res) => {
                     descricao: 'Banca padrão criada automaticamente',
                     usuarioId: user.id,
                     status: 'Ativa',
-                    ePadrao: true,
-                    cor: '#2563eb' // Cor padrão do sistema
+                    ePadrao: true
                 }
             });
             log.info({ userId: user.id, bancaId: bancaPadrao.id }, 'Usuário e banca padrão criados');

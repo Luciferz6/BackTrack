@@ -3,28 +3,47 @@ import { prisma } from '../lib/prisma.js';
 import { authenticateToken } from '../middleware/auth.middleware.js';
 import { z } from 'zod';
 import { calcularResultadoAposta, isApostaConcluida } from '../utils/betCalculations.js';
-import { normalizeColor } from '../utils/colorValidation.js';
 import { handleRouteError } from '../utils/errorHandler.js';
 import { log } from '../utils/logger.js';
 const router = express.Router();
-const createBancaSchema = z.object({
+const saldoInicialSchema = z
+    .preprocess((value) => {
+    if (value === undefined || value === null || value === '') {
+        return undefined;
+    }
+    if (typeof value === 'number') {
+        return value;
+    }
+    if (typeof value === 'string') {
+        const normalized = value.replace(/\./g, '').replace(',', '.');
+        const parsed = Number.parseFloat(normalized);
+        return Number.isNaN(parsed) ? undefined : parsed;
+    }
+    return undefined;
+}, z.number().nonnegative('Valor inicial deve ser positivo'))
+    .optional();
+export const createBancaSchema = z
+    .object({
     nome: z.string().min(1, 'Nome é obrigatório').max(100, 'Nome muito longo'),
     descricao: z.string().max(500, 'Descrição muito longa').optional(),
-    cor: z.string().max(7, 'Cor inválida').optional(),
     status: z.enum(['Ativa', 'Inativa']).optional(),
-    ePadrao: z.boolean().optional()
-}).transform((data) => ({
+    ePadrao: z.boolean().optional(),
+    saldoInicial: saldoInicialSchema,
+})
+    .transform((data) => ({
     ...data,
     descricao: data.descricao && data.descricao.trim() !== '' ? data.descricao : undefined,
-    cor: normalizeColor(data.cor)
 }));
-const updateBancaSchema = z.object({
+export const updateBancaSchema = z.object({
     nome: z.string().min(1, 'Nome é obrigatório').max(100, 'Nome muito longo').optional(),
     descricao: z.string().max(500, 'Descrição muito longa').optional(),
-    cor: z.string().max(7, 'Cor inválida').optional(),
     status: z.enum(['Ativa', 'Inativa']).optional(),
     ePadrao: z.boolean().optional()
 });
+export const sanitizeBankroll = (banca) => {
+    const { cor, ...rest } = banca;
+    return rest;
+};
 // POST /api/bancas - Criar nova banca
 router.post('/', authenticateToken, async (req, res) => {
     try {
@@ -44,15 +63,21 @@ router.post('/', authenticateToken, async (req, res) => {
             status: data.status || 'Ativa',
             ePadrao: data.ePadrao || false
         };
-        // Adicionar cor apenas se for válida
-        const validColor = normalizeColor(data.cor);
-        if (validColor) {
-            createData.cor = validColor;
-        }
         const banca = await prisma.bankroll.create({
             data: createData
         });
-        res.json(banca);
+        if (typeof data.saldoInicial === 'number' && data.saldoInicial > 0) {
+            await prisma.financialTransaction.create({
+                data: {
+                    bancaId: banca.id,
+                    tipo: 'Depósito',
+                    casaDeAposta: 'Saldo inicial',
+                    valor: data.saldoInicial,
+                    observacao: 'Saldo inicial configurado na criação da banca',
+                }
+            });
+        }
+        res.json(sanitizeBankroll(banca));
     }
     catch (error) {
         log.error(error, 'Erro ao criar banca');
@@ -131,7 +156,7 @@ router.get('/', authenticateToken, async (req, res) => {
                 }
             };
         });
-        res.json(bancasComMetricas);
+        res.json(bancasComMetricas.map((banca) => sanitizeBankroll(banca)));
     }
     catch (error) {
         handleRouteError(error, res);
@@ -168,15 +193,11 @@ router.put('/:id', authenticateToken, async (req, res) => {
         if (typeof data.ePadrao === 'boolean') {
             updateData.ePadrao = data.ePadrao;
         }
-        if (data.cor !== undefined) {
-            // Se a cor for válida, usar ela; caso contrário, usar null para resetar
-            updateData.cor = normalizeColor(data.cor) || null;
-        }
         const updated = await prisma.bankroll.update({
             where: { id },
             data: updateData
         });
-        res.json(updated);
+        res.json(sanitizeBankroll(updated));
     }
     catch (error) {
         handleRouteError(error, res);

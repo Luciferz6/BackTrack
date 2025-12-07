@@ -110,10 +110,35 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
             return res.status(400).json({ success: false, error: 'Nenhuma imagem enviada' });
         }
         const ocrText = typeof req.body?.ocrText === 'string' ? req.body.ocrText : undefined;
+        let processedBuffer = req.file.buffer;
+        let processedMime = req.file.mimetype;
+        let processedFilename = req.file.originalname || `bilhete-${Date.now()}`;
+        try {
+            const optimized = await sharp(req.file.buffer)
+                .rotate()
+                .resize({
+                width: 1800,
+                height: 1800,
+                fit: 'inside',
+                withoutEnlargement: true,
+            })
+                .webp({ quality: 90, effort: 4 })
+                .toBuffer();
+            log.info({
+                originalSize: req.file.size,
+                optimizedSize: optimized.length,
+            }, 'Imagem de bilhete otimizada para upload');
+            processedBuffer = optimized;
+            processedMime = 'image/webp';
+            processedFilename = `${processedFilename.replace(/\.[^/.]+$/, '')}.webp`;
+        }
+        catch (imageError) {
+            log.warn({ err: imageError }, 'Falha ao otimizar imagem de bilhete, seguindo com buffer original');
+        }
         const formData = new FormData();
-        formData.append('image', req.file.buffer, {
-            filename: req.file.originalname || `bilhete-${Date.now()}.webp`,
-            contentType: req.file.mimetype,
+        formData.append('image', processedBuffer, {
+            filename: processedFilename || `bilhete-${Date.now()}.webp`,
+            contentType: processedMime,
         });
         if (ocrText) {
             formData.append('ocrText', ocrText);
@@ -142,14 +167,24 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
             return res.status(response.status).json({ success: false, error: message });
         }
         log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via serviço externo');
-        return res.json(payload);
+        // Map BilheteTracker response format (ticket) to frontend format (data)
+        const frontendResponse = {
+            success: payload.success,
+            data: payload.ticket, // BilheteTracker returns 'ticket', frontend expects 'data'
+            message: payload.message
+        };
+        return res.json(frontendResponse);
     }
     catch (error) {
-        log.error(error, 'Erro ao processar bilhete via upload');
-        const message = error?.message ||
-            (typeof error === 'string' ? error : 'Erro ao processar bilhete. Tente novamente mais tarde.');
+        log.error({ err: error }, 'Erro ao processar bilhete via upload');
+        const message = error instanceof Error
+            ? error.message
+            : typeof error === 'string'
+                ? error
+                : 'Erro ao processar bilhete. Tente novamente mais tarde.';
         const abortedByClient = req.aborted;
-        const statusCode = abortedByClient ? 499 : error?.name === 'AbortError' ? 504 : 502;
+        const isAbortError = error instanceof Error && error.name === 'AbortError';
+        const statusCode = abortedByClient ? 499 : isAbortError ? 504 : 502;
         return res.status(statusCode).json({
             success: false,
             error: message,
