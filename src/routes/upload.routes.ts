@@ -54,62 +54,30 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
 
     const userId = req.user!.userId;
 
-    // Gerar nome único para o arquivo
-    const filename = `perfil-${userId}-${Date.now()}.webp`;
-    const uploadsDir = path.join(__dirname, '../../uploads/perfil');
-    const filepath = path.join(uploadsDir, filename);
-
-    // Garantir que o diretório existe
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
     // Processar e redimensionar a imagem com sharp
-    await sharp(req.file.buffer)
+    const processedBuffer = await sharp(req.file.buffer)
       .resize(300, 300, {
         fit: 'cover',
         position: 'center'
       })
       .webp({ quality: 85 })
-      .toFile(filepath);
+      .toBuffer();
 
-    // Construir URL com base no host atual para funcionar em qualquer ambiente
-    const baseUrl = `${req.protocol}://${req.get('host')}`;
-    const fotoUrl = `${baseUrl}/uploads/perfil/${filename}`;
+    // Converter para base64 data URI
+    const base64 = processedBuffer.toString('base64');
+    const dataUri = `data:image/webp;base64,${base64}`;
 
-    // Buscar foto antiga para deletar
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { fotoPerfil: true }
-    });
-
-    // Deletar foto antiga se existir
-    if (user?.fotoPerfil) {
-      try {
-        const oldFilename = user.fotoPerfil.split('/').pop();
-        if (oldFilename) {
-          const oldFilepath = path.join(uploadsDir, oldFilename);
-          if (fs.existsSync(oldFilepath)) {
-            fs.unlinkSync(oldFilepath);
-            log.info({ userId, oldFile: oldFilename }, 'Foto de perfil antiga deletada');
-          }
-        }
-      } catch (error) {
-        log.error(error, 'Erro ao deletar foto antiga');
-      }
-    }
-
-    // Atualizar URL da foto no banco de dados
+    // Atualizar data URI da foto no banco de dados
     await prisma.user.update({
       where: { id: userId },
-      data: { fotoPerfil: fotoUrl }
+      data: { fotoPerfil: dataUri }
     });
 
-    log.info({ userId, filename }, 'Foto de perfil enviada com sucesso');
+    log.info({ userId, size: processedBuffer.length }, 'Foto de perfil atualizada (base64)');
 
     res.json({
       message: 'Foto de perfil atualizada com sucesso',
-      url: fotoUrl
+      url: dataUri
     });
   } catch (error: any) {
     log.error(error, 'Erro ao fazer upload da foto');
@@ -254,22 +222,7 @@ router.delete('/perfil', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Nenhuma foto de perfil encontrada' });
     }
 
-    // Deletar arquivo físico
-    try {
-      const filename = user.fotoPerfil.split('/').pop();
-      if (filename) {
-        const uploadsDir = path.join(__dirname, '../../uploads/perfil');
-        const filepath = path.join(uploadsDir, filename);
-        if (fs.existsSync(filepath)) {
-          fs.unlinkSync(filepath);
-          log.info({ userId, filename }, 'Foto de perfil deletada do sistema de arquivos');
-        }
-      }
-    } catch (error) {
-      log.error(error, 'Erro ao deletar arquivo físico');
-    }
-
-    // Remover URL do banco de dados
+    // Remover data URI do banco de dados
     await prisma.user.update({
       where: { id: userId },
       data: { fotoPerfil: null }
