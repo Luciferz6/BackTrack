@@ -118,6 +118,7 @@ const extractMarketSelections = (market) => {
         .map((segment) => segment
         .replace(/R\$\s*[\d.,]+/gi, '')
         .replace(/\s{2,}/g, ' ')
+        .replace(/^[^a-zA-ZÀ-ÿ0-9]+/, '')
         .replace(/^[\d\s.,:;()\-]+/, '')
         .replace(MARKET_CONNECTOR_PATTERN, '')
         .trim())
