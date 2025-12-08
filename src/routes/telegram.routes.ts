@@ -1244,7 +1244,8 @@ router.post('/webhook', async (req, res) => {
 
     let normalizedData: NormalizedTicketData;
     try {
-      normalizedData = await processTicketViaBilheteTracker(base64, mimeType, message.caption || undefined);
+      // Não enviar caption como ocrText para permitir que o serviço execute o OCR completo
+      normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
     } catch (serviceError) {
       log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo, tentando fallback local');
 
