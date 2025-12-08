@@ -96,6 +96,63 @@ const normalizeAccountId = (value) => {
         return null;
     return cleaned.toLowerCase();
 };
+const MARKET_LABEL_PATTERN = /^(aposta|odd|retorno|retornos?\spotenciais?|valor|stake|cotação|apostas?)[:]?/i;
+const MARKET_CONNECTOR_PATTERN = /^(?:o|e|ou)\s+/i;
+const extractMarketSelections = (market) => {
+    if (!market) {
+        return [];
+    }
+    const normalized = market.trim();
+    if (!normalized || normalized === 'N/D') {
+        return [];
+    }
+    const rawSegments = normalized
+        .replace(/\r/g, '\n')
+        .replace(/R\$\s*[\d.,]+/gi, '\n')
+        .replace(/Odd[s]?[^\n]*[\d.,]+/gi, '\n')
+        .split(/\n+/)
+        .flatMap((segment) => segment.split(/\s{2,}|[|]/))
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+    const cleaned = rawSegments
+        .map((segment) => segment
+        .replace(/R\$\s*[\d.,]+/gi, '')
+        .replace(/\s{2,}/g, ' ')
+        .replace(/^[\d\s.,:;()\-]+/, '')
+        .replace(MARKET_CONNECTOR_PATTERN, '')
+        .trim())
+        .filter((segment) => segment.length > 0)
+        .filter((segment) => {
+        if (!/[a-zA-ZÀ-ÿ]/.test(segment)) {
+            return false;
+        }
+        if (MARKET_LABEL_PATTERN.test(segment)) {
+            return false;
+        }
+        if (/^[\d.,]+$/.test(segment.replace(',', '.'))) {
+            return false;
+        }
+        return true;
+    });
+    const deduped = [];
+    for (const segment of cleaned) {
+        const lower = segment.toLowerCase();
+        if (!deduped.some((existing) => existing.toLowerCase() === lower)) {
+            deduped.push(segment);
+        }
+    }
+    return deduped;
+};
+const formatMarketText = (market) => {
+    const selections = extractMarketSelections(market);
+    if (selections.length > 0) {
+        return selections.join('\n');
+    }
+    if (typeof market === 'string' && market.trim() !== '') {
+        return market.trim();
+    }
+    return 'N/D';
+};
 const sendTelegramMessage = async (chatId, text, replyMarkup, replyToMessageId, useSupportBot = false) => {
     try {
         const token = useSupportBot ? getSupportBotToken() : getTelegramBotToken();
@@ -380,35 +437,7 @@ const formatBetMessage = (bet, banca) => {
         const statusEmoji = bet.status === 'Ganha' ? '✅' : bet.status === 'Perdida' ? '❌' : '⏳';
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
-        const normalizeMarketLines = (market) => {
-            if (!market || market === 'N/D') {
-                return [];
-            }
-            const lines = market
-                .split(/\r?\n/)
-                .map((line) => line
-                .trim()
-                .replace(/^[^a-zA-Z0-9]+/, '')
-                .replace(/\s{2,}/g, ' ')
-                .trim())
-                .filter(Boolean)
-                .filter((line) => {
-                const numericOnly = /^\d+(?:[.,]\d+)?$/;
-                const currencyLine = /^r\$\s*[\d.,]+$/i;
-                const labelLine = /^(aposta|odd|retorno|retornos?\spotenciais?)[:]?/i;
-                return !numericOnly.test(line.replace(',', '.')) && !currencyLine.test(line) && !labelLine.test(line);
-            });
-            const deduped = [];
-            for (const line of lines) {
-                if (!line)
-                    continue;
-                const exists = deduped.some((existing) => existing.toLowerCase() === line.toLowerCase());
-                if (!exists)
-                    deduped.push(line);
-            }
-            return deduped;
-        };
-        const marketLines = normalizeMarketLines(bet.mercado);
+        const marketLines = extractMarketSelections(bet.mercado);
         let apostaText;
         if (marketLines.length > 1) {
             apostaText = marketLines.map((line) => `• ${line}`).join('\n');
@@ -1156,7 +1185,7 @@ router.post('/webhook', async (req, res) => {
                 jogo,
                 torneio: normalizedData.torneio || null,
                 pais: normalizedData.pais || null,
-                mercado: normalizedData.mercado || 'N/D',
+                mercado: formatMarketText(normalizedData.mercado),
                 tipoAposta: normalizedData.tipoAposta || 'Simples',
                 valorApostado: normalizedData.valorApostado || 0,
                 odd: normalizedData.odd || 1,
