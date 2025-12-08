@@ -22,6 +22,50 @@ const getSupportBotToken = () => {
 const ensureConfig = () => {
     getTelegramBotToken();
 };
+const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
+const BILHETE_TRACKER_SCAN_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/scan-ticket`;
+const BILHETE_TRACKER_TIMEOUT_MS = parseInt(process.env.BILHETE_TRACKER_TIMEOUT_MS || '60000', 10);
+const normalizeBilheteTrackerTicket = (ticket) => ({
+    casaDeAposta: ticket.casaDeAposta || '',
+    tipster: ticket.tipster || '',
+    esporte: ticket.esporte || '',
+    jogo: ticket.jogo || '',
+    torneio: ticket.torneio || '',
+    pais: ticket.pais || 'Mundo',
+    mercado: ticket.mercado || '',
+    tipoAposta: ticket.tipoAposta || 'Simples',
+    valorApostado: typeof ticket.valorApostado === 'number' ? ticket.valorApostado : Number(ticket.valorApostado) || 0,
+    odd: typeof ticket.odd === 'number' ? ticket.odd : Number(ticket.odd) || 0,
+    dataJogo: ticket.dataJogo || '',
+    status: ticket.status || 'Pendente'
+});
+const processTicketViaBilheteTracker = async (base64Image, mimeType, ocrText) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), BILHETE_TRACKER_TIMEOUT_MS);
+    try {
+        const payload = {
+            image: `data:${mimeType};base64,${base64Image}`,
+            ...(ocrText?.trim() ? { ocrText } : {})
+        };
+        const response = await fetch(BILHETE_TRACKER_SCAN_ENDPOINT, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+            signal: controller.signal
+        });
+        const data = (await response.json().catch(() => {
+            throw new Error('Resposta inválida do serviço de bilhetes');
+        }));
+        if (!response.ok || !data?.success || !data.ticket) {
+            const message = data?.error || data?.message || `Serviço de bilhetes retornou status ${response.status}`;
+            throw new Error(message);
+        }
+        return normalizeBilheteTrackerTicket(data.ticket);
+    }
+    finally {
+        clearTimeout(timeout);
+    }
+};
 const extractCommandParam = (text) => {
     if (!text)
         return null;
@@ -1033,11 +1077,33 @@ router.post('/webhook', async (req, res) => {
                 casaDeApostaFromCaption = lines[0];
             }
         }
-        const normalizedData = await processTicket({
-            base64Image: base64,
-            mimeType,
-            ocrText: message.caption || ''
-        });
+        let normalizedData;
+        try {
+            normalizedData = await processTicketViaBilheteTracker(base64, mimeType, message.caption || undefined);
+        }
+        catch (serviceError) {
+            log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo, tentando fallback local');
+            try {
+                normalizedData = await processTicket({
+                    base64Image: base64,
+                    mimeType,
+                    ocrText: message.caption || ''
+                });
+            }
+            catch (processingError) {
+                log.error({ error: processingError }, 'Falha ao processar bilhete via IA');
+                if (processingMessageId) {
+                    try {
+                        await deleteMessage(message.chat.id, processingMessageId);
+                    }
+                    catch (deleteProcessingError) {
+                        log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
+                    }
+                }
+                await sendTelegramMessage(message.chat.id, '❌ Não conseguimos interpretar este bilhete no momento. Verifique se o bot está com a IA configurada e tente reenviar em alguns minutos.', undefined, message.message_id);
+                return res.json({ ok: true });
+            }
+        }
         // Priorizar valores do caption se disponíveis, senão usar os extraídos pela IA
         const casaDeAposta = casaDeApostaFromCaption || normalizedData.casaDeAposta || 'N/D';
         const tipster = tipsterFromCaption || normalizedData.tipster || '';
