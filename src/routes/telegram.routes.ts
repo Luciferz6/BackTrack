@@ -129,6 +129,98 @@ const normalizeAccountId = (value?: string | null): string | null => {
 
 const MARKET_LABEL_PATTERN = /^(aposta|odd|retorno|retornos?\spotenciais?|valor|stake|cotação|apostas?)[:]?/i;
 const MARKET_CONNECTOR_PATTERN = /^(?:o|e|ou)\s+/i;
+const MARKET_STAT_KEYWORDS = [
+  'ponto',
+  'pontos',
+  'rebote',
+  'rebotes',
+  'assistencia',
+  'assistencias',
+  'assist',
+  'gol',
+  'gols',
+  'escanteio',
+  'escanteios',
+  'cartao',
+  'cartoes',
+  'cartao amarelo',
+  'cartao vermelho',
+  'faltas',
+  'finalizacao',
+  'finalizacoes',
+  'finalizacao no alvo',
+  'finalizacoes no alvo',
+  'arremesso',
+  'arremessos',
+  'chutes',
+  'triplos',
+  'duplos',
+  'p+r',
+  'p+a',
+  'r+a',
+  'rebotes+pontos',
+  'rebotes+assistencias',
+  'pontos+assistencias',
+  'pontos+rebotes',
+  'rebotes+assist',
+  'pontos+rebotes+assistencias',
+  'passes',
+  'tackles',
+  'defesas',
+  'interceptacoes',
+  'steals',
+  'roubos',
+  'bloqueios',
+  'aces',
+  'games',
+  'sets',
+  'breaks',
+  'quebras'
+];
+
+const normalizeMarketKeyword = (value: string): string =>
+  value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9+&\s]/g, '')
+    .trim()
+    .toLowerCase();
+
+const containsStatKeyword = (value: string): boolean => {
+  const normalized = normalizeMarketKeyword(value);
+  if (!normalized) {
+    return false;
+  }
+  return MARKET_STAT_KEYWORDS.some((keyword) => normalized.includes(keyword));
+};
+
+const needsStatDescriptor = (segment: string): boolean => {
+  if (!segment) {
+    return false;
+  }
+  if (containsStatKeyword(segment)) {
+    return false;
+  }
+
+  const normalized = normalizeMarketKeyword(segment);
+  if (!normalized) {
+    return false;
+  }
+
+  const raw = segment.trim();
+  if (/\d+\s*\+$/.test(raw)) {
+    return true;
+  }
+  if (/\b(?:mais|menos|over|under|abaixo|acima)\b/.test(normalized)) {
+    return true;
+  }
+  if (/\b(?:mais|menos)\s+de\b/.test(normalized) && /\d/.test(normalized)) {
+    return true;
+  }
+  return false;
+};
+
+const isStatDescriptor = (segment: string): boolean => containsStatKeyword(segment);
 
 const extractMarketSelections = (market?: string | null): string[] => {
   if (!market) {
@@ -173,8 +265,20 @@ const extractMarketSelections = (market?: string | null): string[] => {
       return true;
     });
 
+  const mergedSegments: string[] = [];
+  for (let i = 0; i < cleaned.length; i += 1) {
+    const segment = cleaned[i];
+    const next = cleaned[i + 1];
+    if (next && needsStatDescriptor(segment) && isStatDescriptor(next)) {
+      mergedSegments.push(`${segment} ${next}`);
+      i += 1;
+      continue;
+    }
+    mergedSegments.push(segment);
+  }
+
   const deduped: string[] = [];
-  for (const segment of cleaned) {
+  for (const segment of mergedSegments) {
     const lower = segment.toLowerCase();
     if (!deduped.some((existing) => existing.toLowerCase() === lower)) {
       deduped.push(segment);
