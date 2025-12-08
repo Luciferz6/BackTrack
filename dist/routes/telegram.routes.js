@@ -380,9 +380,48 @@ const formatBetMessage = (bet, banca) => {
         const statusEmoji = bet.status === 'Ganha' ? '✅' : bet.status === 'Perdida' ? '❌' : '⏳';
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
-        const apostaText = bet.mercado && bet.mercado !== 'N/D'
-            ? bet.mercado
-            : bet.jogo || 'N/D';
+        const normalizeMarketLines = (market) => {
+            if (!market || market === 'N/D') {
+                return [];
+            }
+            const lines = market
+                .split(/\r?\n/)
+                .map((line) => line
+                .trim()
+                .replace(/^[^a-zA-Z0-9]+/, '')
+                .replace(/\s{2,}/g, ' ')
+                .trim())
+                .filter(Boolean)
+                .filter((line) => {
+                const numericOnly = /^\d+(?:[.,]\d+)?$/;
+                const currencyLine = /^r\$\s*[\d.,]+$/i;
+                const labelLine = /^(aposta|odd|retorno|retornos?\spotenciais?)[:]?/i;
+                return !numericOnly.test(line.replace(',', '.')) && !currencyLine.test(line) && !labelLine.test(line);
+            });
+            const deduped = [];
+            for (const line of lines) {
+                if (!line)
+                    continue;
+                const exists = deduped.some((existing) => existing.toLowerCase() === line.toLowerCase());
+                if (!exists)
+                    deduped.push(line);
+            }
+            return deduped;
+        };
+        const marketLines = normalizeMarketLines(bet.mercado);
+        let apostaText;
+        if (marketLines.length > 1) {
+            apostaText = marketLines.map((line) => `• ${line}`).join('\n');
+        }
+        else if (marketLines.length === 1) {
+            apostaText = marketLines[0];
+        }
+        else {
+            apostaText = bet.jogo || 'N/D';
+        }
+        const apostaLine = apostaText.includes('\n')
+            ? `🎯 Aposta:\n${apostaText}`
+            : `🎯 Aposta: ${apostaText}`;
         return `✅ Bilhete processado com sucesso
 
 🆔 ID: ${bet.id}
@@ -392,7 +431,7 @@ ${statusText}
 🏀 Esporte: ${bet.esporte || 'N/D'}
 🏆 Torneio: ${bet.torneio || 'N/D'}
 ⚔️ Evento: ${bet.jogo || 'N/D'}
-🎯 Aposta: ${apostaText}
+${apostaLine}
 💵 Valor Apostado: ${formatCurrency(valorApostado)}
 📊 Odd: ${odd}
 💚 Retorno Potencial: ${formatCurrency(retornoPotencial)}
