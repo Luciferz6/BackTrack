@@ -24,7 +24,7 @@ async function testDailyLimit() {
   try {
     console.log('🧪 Testando limite diário de apostas...\n');
 
-    // Buscar plano Gratuito (10 apostas/dia)
+    // Buscar plano Gratuito (5 apostas/dia)
     const plan = await prisma.plan.findUnique({
       where: { nome: 'Gratuito' }
     });
@@ -85,7 +85,7 @@ async function testDailyLimit() {
 
     // Criar apostas até o limite
     const limite = plan.limiteApostasDiarias;
-    const apostasParaCriar = Math.min(10, limite - apostasExistentes); // Criar no máximo 10 apostas para teste
+    const apostasParaCriar = Math.min(5, limite - apostasExistentes); // Criar no máximo 5 apostas para teste
 
     if (apostasParaCriar <= 0) {
       console.log('⚠️  Limite já atingido ou muito próximo. Não é possível criar mais apostas hoje.');

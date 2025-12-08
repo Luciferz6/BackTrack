@@ -117,6 +117,144 @@ router.post('/', authenticateToken, async (req, res) => {
         handleRouteError(error, res);
     }
 });
+// POST /api/apostas/bulk - Importação em lote
+router.post('/bulk', authenticateToken, async (req, res) => {
+    try {
+        const userId = req.userId;
+        const betsArray = req.body;
+        if (!Array.isArray(betsArray)) {
+            return res.status(400).json({ error: 'Body deve ser um array de apostas' });
+        }
+        if (betsArray.length === 0) {
+            return res.status(400).json({ error: 'Array de apostas está vazio' });
+        }
+        if (betsArray.length > 500) {
+            return res.status(400).json({ error: 'Limite de 500 apostas por importação' });
+        }
+        // Validar todas as apostas primeiro
+        const validatedBets = [];
+        const errors = [];
+        for (let i = 0; i < betsArray.length; i++) {
+            try {
+                const data = createApostaSchema.parse(betsArray[i]);
+                validatedBets.push({ index: i, data });
+            }
+            catch (error) {
+                if (error instanceof z.ZodError) {
+                    errors.push({
+                        index: i,
+                        errors: error.errors.map(e => `${e.path.join('.')}: ${e.message}`)
+                    });
+                }
+                else {
+                    errors.push({ index: i, errors: ['Erro desconhecido na validação'] });
+                }
+            }
+        }
+        if (validatedBets.length === 0) {
+            return res.status(400).json({
+                error: 'Nenhuma aposta válida encontrada',
+                validationErrors: errors
+            });
+        }
+        // Verificar se todas as bancas pertencem ao usuário
+        const bancaIds = [...new Set(validatedBets.map(b => b.data.bancaId))];
+        const bancas = await prisma.bankroll.findMany({
+            where: {
+                id: { in: bancaIds },
+                usuarioId: userId
+            },
+            include: {
+                usuario: {
+                    select: {
+                        membroDesde: true,
+                        plano: true
+                    }
+                }
+            }
+        });
+        if (bancas.length !== bancaIds.length) {
+            return res.status(404).json({ error: 'Uma ou mais bancas não encontradas' });
+        }
+        // Verificar limite diário (apenas para a primeira banca)
+        const plano = bancas[0].usuario.plano;
+        if (plano.limiteApostasDiarias > 0) {
+            const agora = new Date();
+            const inicioDia = new Date(agora);
+            inicioDia.setHours(0, 0, 0, 0);
+            const apostasHoje = await prisma.bet.count({
+                where: {
+                    banca: { usuarioId: userId },
+                    createdAt: { gte: inicioDia }
+                }
+            });
+            const totalAposta = apostasHoje + validatedBets.length;
+            if (totalAposta > plano.limiteApostasDiarias) {
+                const restante = plano.limiteApostasDiarias - apostasHoje;
+                return res.status(403).json({
+                    error: `Limite diário de apostas atingido. Restam ${restante} apostas disponíveis hoje.`,
+                    available: restante,
+                    limit: plano.limiteApostasDiarias
+                });
+            }
+        }
+        // Criar apostas em lote
+        const createdBets = [];
+        const creationErrors = [];
+        for (const { index, data } of validatedBets) {
+            try {
+                const aposta = await prisma.bet.create({
+                    data: {
+                        bancaId: data.bancaId,
+                        esporte: data.esporte,
+                        jogo: data.jogo,
+                        torneio: data.torneio,
+                        pais: data.pais,
+                        mercado: data.mercado,
+                        tipoAposta: data.tipoAposta,
+                        valorApostado: data.valorApostado,
+                        odd: data.odd,
+                        bonus: data.bonus || 0,
+                        dataJogo: new Date(data.dataJogo),
+                        tipster: data.tipster,
+                        status: data.status || 'Pendente',
+                        casaDeAposta: data.casaDeAposta,
+                        retornoObtido: data.retornoObtido
+                    }
+                });
+                createdBets.push(aposta);
+            }
+            catch (error) {
+                creationErrors.push({
+                    index,
+                    error: error instanceof Error ? error.message : 'Erro ao criar aposta'
+                });
+            }
+        }
+        // Emitir evento de atualização
+        if (createdBets.length > 0) {
+            emitBetEvent({
+                userId,
+                type: 'created',
+                payload: { count: createdBets.length }
+            });
+        }
+        res.json({
+            success: createdBets.length,
+            errors: creationErrors.length,
+            validationErrors: errors.length,
+            total: betsArray.length,
+            details: {
+                created: createdBets.length,
+                failed: creationErrors.length,
+                validationFailed: errors.length
+            }
+        });
+    }
+    catch (error) {
+        handleRouteError(error, res);
+    }
+});
 // GET /api/apostas - Listar apostas com filtros
 router.get('/', authenticateToken, async (req, res) => {
     try {

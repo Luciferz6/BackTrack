@@ -1,15 +1,20 @@
 import { prisma } from './prisma-helper.js';
 
+const formatLimit = (limit?: number | null) => {
+  if (!limit || limit <= 0) return 'Ilimitado';
+  return `${limit} apostas/dia`;
+};
+
 async function assignPlan() {
   const args = process.argv.slice(2);
   
   if (args.length < 2) {
     console.log('📖 Uso: npm run assign-plan <email-do-usuario> <nome-do-plano>');
     console.log('\n📋 Planos disponíveis:');
-    console.log('   - Gratuito (10 apostas/dia)');
-    console.log('   - Iniciante (60 apostas/dia)');
-    console.log('   - Profissional (300 apostas/dia)');
-    console.log('\n💡 Exemplo: npm run assign-plan usuario@email.com Iniciante');
+    console.log('   - Gratuito (5 apostas/dia)');
+    console.log('   - Amador (50 apostas/dia)');
+    console.log('   - Profissional (apostas ilimitadas)');
+    console.log('\n💡 Exemplo: npm run assign-plan usuario@email.com Amador');
     process.exit(1);
   }
 
@@ -30,7 +35,7 @@ async function assignPlan() {
     }
 
     console.log(`✅ Usuário encontrado: ${user.nomeCompleto}`);
-    console.log(`   Plano atual: ${user.plano.nome} (${user.plano.limiteApostasDiarias} apostas/dia)\n`);
+    console.log(`   Plano atual: ${user.plano.nome} (${formatLimit(user.plano.limiteApostasDiarias)})\n`);
 
     // Buscar plano
     const plan = await prisma.plan.findUnique({
@@ -44,7 +49,7 @@ async function assignPlan() {
         select: { nome: true, limiteApostasDiarias: true }
       });
       allPlans.forEach(p => {
-        console.log(`   - ${p.nome} (${p.limiteApostasDiarias} apostas/dia)`);
+        console.log(`   - ${p.nome} (${formatLimit(p.limiteApostasDiarias)})`);
       });
       process.exit(1);
     }
@@ -58,7 +63,7 @@ async function assignPlan() {
 
     console.log(`✅ Plano atualizado com sucesso!`);
     console.log(`   Novo plano: ${updated.plano.nome}`);
-    console.log(`   Limite diário: ${updated.plano.limiteApostasDiarias} apostas\n`);
+    console.log(`   Limite diário: ${formatLimit(updated.plano.limiteApostasDiarias)}\n`);
 
   } catch (error: any) {
     console.error('❌ Erro ao atribuir plano:', error.message);

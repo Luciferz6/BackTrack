@@ -43,7 +43,7 @@ router.post('/register', sensitiveRateLimiter, async (req, res) => {
       return res.status(500).json({ error: 'Plano padrão não encontrado. Execute o script de inicialização.' });
     }
 
-    // Criar usuário e banca padrão em uma transação
+    // Criar usuário, banca e tipster padrão em uma transação
     const result = await prisma.$transaction(async (tx: any) => {
       // Criar usuário
       const user = await tx.user.create({
@@ -66,7 +66,19 @@ router.post('/register', sensitiveRateLimiter, async (req, res) => {
         }
       });
 
-      log.info({ userId: user.id, bancaId: bancaPadrao.id }, 'Usuário e banca padrão criados');
+      // Criar tipster padrão utilizando o apelido informado no cadastro
+      const tipsterPadrao = await tx.tipster.create({
+        data: {
+          nome: data.nomeCompleto.trim() || 'Tipster Padrão',
+          usuarioId: user.id,
+          ativo: true
+        }
+      });
+
+      log.info(
+        { userId: user.id, bancaId: bancaPadrao.id, tipsterId: tipsterPadrao.id },
+        'Usuário, banca e tipster padrão criados'
+      );
 
       return { user, bancaPadrao };
     });

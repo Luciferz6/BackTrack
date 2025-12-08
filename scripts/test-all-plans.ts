@@ -6,14 +6,17 @@ dotenv.config();
 
 const prisma = new PrismaClient();
 
+const formatDailyLimit = (limit: number) => (limit && limit > 0 ? `${limit} apostas` : 'Ilimitado');
+const formatDailyLimitProgress = (limit: number) => (limit && limit > 0 ? `${limit}` : '∞');
+
 async function testAllPlans() {
   try {
     console.log('🧪 Testando todos os planos disponíveis...\n');
 
     const plans = [
-      { nome: 'Gratuito', limiteEsperado: 10 },
-      { nome: 'Iniciante', limiteEsperado: 60 },
-      { nome: 'Profissional', limiteEsperado: 300 }
+      { nome: 'Gratuito', limiteEsperado: 5 },
+      { nome: 'Amador', limiteEsperado: 50 },
+      { nome: 'Profissional', limiteEsperado: 0 }
     ];
 
     const usersCreated: string[] = [];
@@ -34,7 +37,7 @@ async function testAllPlans() {
 
       console.log(`✅ ${planInfo.nome} encontrado:`);
       console.log(`   - ID: ${plan.id}`);
-      console.log(`   - Limite Diário: ${plan.limiteApostasDiarias} apostas`);
+      console.log(`   - Limite Diário: ${formatDailyLimit(plan.limiteApostasDiarias)}`);
 
       // Verificar se o limite está correto
       if (plan.limiteApostasDiarias === planInfo.limiteEsperado) {
@@ -65,7 +68,7 @@ async function testAllPlans() {
       console.log(`   - ID: ${user.id}`);
       console.log(`   - Email: ${user.email}`);
       console.log(`   - Plano: ${user.plano.nome}`);
-      console.log(`   - Limite Diário: ${user.plano.limiteApostasDiarias} apostas`);
+      console.log(`   - Limite Diário: ${formatDailyLimit(user.plano.limiteApostasDiarias)}`);
 
       // Verificar se o plano foi atribuído corretamente
       if (user.plano.nome === planInfo.nome && user.plano.limiteApostasDiarias === planInfo.limiteEsperado) {
@@ -90,8 +93,9 @@ async function testAllPlans() {
         }
       });
 
-      console.log(`   - Apostas hoje: ${apostasHoje}/${planInfo.limiteEsperado}`);
-      console.log(`   - Pode criar mais: ${apostasHoje < planInfo.limiteEsperado ? 'Sim ✅' : 'Não ❌'}`);
+      const isUnlimited = planInfo.limiteEsperado === 0;
+      console.log(`   - Apostas hoje: ${apostasHoje}/${formatDailyLimitProgress(planInfo.limiteEsperado)}`);
+      console.log(`   - Pode criar mais: ${isUnlimited || apostasHoje < planInfo.limiteEsperado ? 'Sim ✅' : 'Não ❌'}`);
       
       // Criar uma banca de teste para testar o limite
       const banca = await prisma.bankroll.create({
@@ -108,9 +112,9 @@ async function testAllPlans() {
       let apostasCriadas = 0;
       const limite = planInfo.limiteEsperado;
       const apostasExistentes = apostasHoje;
-      const apostasParaCriar = Math.min(5, limite - apostasExistentes); // Criar no máximo 5 apostas para teste
+      const apostasParaCriar = isUnlimited ? 5 : Math.min(5, limite - apostasExistentes);
       
-      if (apostasParaCriar > 0) {
+      if (isUnlimited || apostasParaCriar > 0) {
         for (let i = 0; i < apostasParaCriar; i++) {
           try {
             await prisma.bet.create({
@@ -145,7 +149,7 @@ async function testAllPlans() {
         console.log(`\n   📊 Resultado:`);
         console.log(`   - Apostas antes: ${apostasExistentes}`);
         console.log(`   - Apostas criadas no teste: ${apostasCriadas}`);
-        console.log(`   - Total de apostas hoje: ${apostasFinais}/${limite}`);
+        console.log(`   - Total de apostas hoje: ${apostasFinais}/${formatDailyLimitProgress(limite)}`);
         
         if (apostasFinais === apostasExistentes + apostasCriadas) {
           console.log(`   ✅ Contagem de apostas está correta!`);
@@ -176,9 +180,9 @@ async function testAllPlans() {
 
     console.log('\n\n📊 RESUMO:');
     console.log('─'.repeat(50));
-    console.log('✅ Gratuito: 10 apostas/dia');
-    console.log('✅ Iniciante: 60 apostas/dia');
-    console.log('✅ Profissional: 300 apostas/dia');
+    console.log('✅ Gratuito: 5 apostas/dia');
+    console.log('✅ Amador: 50 apostas/dia');
+    console.log('✅ Profissional: apostas ilimitadas');
     console.log('\n✅ Todos os planos estão funcionando corretamente!');
 
   } catch (error: any) {

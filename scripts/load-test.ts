@@ -8,7 +8,7 @@ const USERS = Number(process.env.LOAD_TEST_USERS ?? 100);
 const BETS_PER_USER = Number(process.env.LOAD_TEST_BETS ?? 3);
 const API_BASE = (process.env.LOAD_TEST_BASE_URL ?? `http://localhost:${process.env.PORT ?? 3001}/api`).replace(/\/$/, '');
 // Número de usuários reais a criar
-// Para evitar exceder limite de 10 apostas/dia do plano Gratuito, cada usuário deve criar apenas BETS_PER_USER apostas
+// Para evitar exceder limite de 5 apostas/dia do plano Gratuito, cada usuário deve criar apenas BETS_PER_USER apostas
 // Então precisamos de pelo menos USERS usuários reais (um para cada sessão simulada)
 const REAL_USERS = USERS; // Criar um usuário real para cada sessão simulada
 

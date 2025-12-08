@@ -38,7 +38,8 @@ export const updateBancaSchema = z.object({
     nome: z.string().min(1, 'Nome é obrigatório').max(100, 'Nome muito longo').optional(),
     descricao: z.string().max(500, 'Descrição muito longa').optional(),
     status: z.enum(['Ativa', 'Inativa']).optional(),
-    ePadrao: z.boolean().optional()
+    ePadrao: z.boolean().optional(),
+    saldoInicial: saldoInicialSchema
 });
 export const sanitizeBankroll = (banca) => {
     const { cor, ...rest } = banca;
@@ -197,6 +198,46 @@ router.put('/:id', authenticateToken, async (req, res) => {
             where: { id },
             data: updateData
         });
+        // Handle saldoInicial update
+        if (typeof data.saldoInicial === 'number') {
+            // Find existing initial balance transaction
+            const existingTransaction = await prisma.financialTransaction.findFirst({
+                where: {
+                    bancaId: id,
+                    casaDeAposta: 'Saldo inicial'
+                }
+            });
+            if (data.saldoInicial > 0) {
+                if (existingTransaction) {
+                    // Update existing transaction
+                    await prisma.financialTransaction.update({
+                        where: { id: existingTransaction.id },
+                        data: {
+                            valor: data.saldoInicial,
+                            observacao: 'Saldo inicial atualizado'
+                        }
+                    });
+                }
+                else {
+                    // Create new initial balance transaction
+                    await prisma.financialTransaction.create({
+                        data: {
+                            bancaId: id,
+                            tipo: 'Depósito',
+                            casaDeAposta: 'Saldo inicial',
+                            valor: data.saldoInicial,
+                            observacao: 'Saldo inicial configurado'
+                        }
+                    });
+                }
+            }
+            else if (data.saldoInicial === 0 && existingTransaction) {
+                // Remove initial balance transaction if set to 0
+                await prisma.financialTransaction.delete({
+                    where: { id: existingTransaction.id }
+                });
+            }
+        }
         res.json(sanitizeBankroll(updated));
     }
     catch (error) {

@@ -50,7 +50,7 @@ async function testUserCreation() {
     console.log(`   - Limite Diário: ${user.plano.limiteApostasDiarias} apostas\n`);
 
     // Verificar se o plano está correto
-    if (user.plano.nome === 'Gratuito' && user.plano.limiteApostasDiarias === 50) {
+    if (user.plano.nome === 'Gratuito' && user.plano.limiteApostasDiarias === 5) {
       console.log('✅ CONFIRMADO: Usuário recebeu o Plano Gratuito corretamente!');
     } else {
       console.error('❌ ERRO: Usuário não recebeu o Plano Gratuito corretamente!');

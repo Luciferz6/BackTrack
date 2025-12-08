@@ -4,6 +4,7 @@ import type { Bankroll, Bet } from '@prisma/client';
 import { config } from 'dotenv';
 import { prisma } from '../lib/prisma.js';
 import { processTicket } from '../services/ticketProcessor.js';
+import type { NormalizedTicketData } from '../services/ticketProcessor.js';
 import { emitBetEvent } from '../utils/betEvents.js';
 import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
@@ -1168,11 +1169,33 @@ router.post('/webhook', async (req, res) => {
       }
     }
 
-    const normalizedData = await processTicket({
-      base64Image: base64,
-      mimeType,
-      ocrText: message.caption || ''
-    });
+    let normalizedData: NormalizedTicketData;
+    try {
+      normalizedData = await processTicket({
+        base64Image: base64,
+        mimeType,
+        ocrText: message.caption || ''
+      });
+    } catch (processingError) {
+      log.error({ error: processingError }, 'Falha ao processar bilhete via IA');
+
+      if (processingMessageId) {
+        try {
+          await deleteMessage(message.chat.id, processingMessageId);
+        } catch (deleteProcessingError) {
+          log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
+        }
+      }
+
+      await sendTelegramMessage(
+        message.chat.id,
+        '❌ Não conseguimos interpretar este bilhete no momento. Verifique se o bot está com a IA configurada e tente reenviar em alguns minutos.',
+        undefined,
+        message.message_id
+      );
+
+      return res.json({ ok: true });
+    }
 
     // Priorizar valores do caption se disponíveis, senão usar os extraídos pela IA
     const casaDeAposta = casaDeApostaFromCaption || normalizedData.casaDeAposta || 'N/D';

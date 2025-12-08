@@ -38,51 +38,63 @@ async function main() {
   const prisma = new PrismaClient();
   try {
     console.log('> Criando planos...');
+
+    const existingAmador = await prisma.plan.findUnique({ where: { nome: 'Amador' } });
+    if (!existingAmador) {
+      const legacyIniciante = await prisma.plan.findUnique({ where: { nome: 'Iniciante' } });
+      if (legacyIniciante) {
+        console.log('> Renomeando plano "Iniciante" para "Amador"...');
+        await prisma.plan.update({
+          where: { id: legacyIniciante.id },
+          data: { nome: 'Amador' }
+        });
+      }
+    }
     
-    // Plano Gratuito - 10 apostas por dia
+    // Plano Gratuito - 5 apostas por dia
     await prisma.plan.upsert({
       where: { nome: 'Gratuito' },
       update: {
         preco: 0,
-        limiteApostasDiarias: 10
+        limiteApostasDiarias: 5
       },
       create: {
         nome: 'Gratuito',
         preco: 0,
-        limiteApostasDiarias: 10
+        limiteApostasDiarias: 5
       }
     });
-    console.log('✓ Plano Gratuito criado (10 apostas/dia - R$ 0,00)');
+    console.log('✓ Plano Gratuito criado (5 apostas/dia - R$ 0,00)');
 
-    // Plano Iniciante - 60 apostas por dia
+    // Plano Amador - 50 apostas por dia
     await prisma.plan.upsert({
-      where: { nome: 'Iniciante' },
+      where: { nome: 'Amador' },
       update: {
-        preco: 39.99,
-        limiteApostasDiarias: 60
+        preco: 49.99,
+        limiteApostasDiarias: 50
       },
       create: {
-        nome: 'Iniciante',
-        preco: 39.99,
-        limiteApostasDiarias: 60
+        nome: 'Amador',
+        preco: 49.99,
+        limiteApostasDiarias: 50
       }
     });
-    console.log('✓ Plano Iniciante criado (60 apostas/dia - R$ 39,99)');
+    console.log('✓ Plano Amador criado (50 apostas/dia - R$ 49,99)');
 
-    // Plano Profissional - 300 apostas por dia
+    // Plano Profissional - apostas ilimitadas
     await prisma.plan.upsert({
       where: { nome: 'Profissional' },
       update: {
-        preco: 59.99,
-        limiteApostasDiarias: 300
+        preco: 89.99,
+        limiteApostasDiarias: 0
       },
       create: {
         nome: 'Profissional',
-        preco: 59.99,
-        limiteApostasDiarias: 300
+        preco: 89.99,
+        limiteApostasDiarias: 0
       }
     });
-    console.log('✓ Plano Profissional criado (300 apostas/dia - R$ 59,99)');
+    console.log('✓ Plano Profissional criado (apostas ilimitadas - R$ 89,99)');
     
     console.log('Todos os planos criados com sucesso!');
   } finally {

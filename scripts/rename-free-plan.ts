@@ -33,7 +33,7 @@ async function renameFreePlan() {
         data: {
           nome: 'Gratuito',
           preco: 0,
-          limiteApostasDiarias: 50
+          limiteApostasDiarias: 5
         }
       });
       console.log('✅ Plano "Gratuito" criado!');

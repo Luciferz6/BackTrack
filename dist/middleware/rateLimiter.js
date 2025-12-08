@@ -59,18 +59,20 @@ const isLoadTestMode = process.env.LOAD_TEST_MODE === 'true';
  */
 export const globalRateLimiter = rateLimit({
     windowMs: isLoadTestMode ? 1 * 60 * 1000 : 15 * 60 * 1000, // 1 minuto em modo teste, 15 minutos normal
-    max: isLoadTestMode ? 1000 : 500, // 1000 requisições em modo teste, 500 normal (aumentado de 200)
+    max: isLoadTestMode ? 5000 : 2000, // 5000 requisições em modo teste, 2000 normal (aumentado para permitir CSV bulk imports)
     message: {
         error: 'Muitas requisições deste IP, tente novamente em alguns minutos.'
     },
     standardHeaders: true, // Retorna rate limit info nos headers `RateLimit-*`
     legacyHeaders: false, // Desabilita headers `X-RateLimit-*`
-    // Pular rate limiting para rotas que têm rate limiters específicos
+    // Pular rate limiting para rotas que têm rate limiters específicos ou são bulk imports
     skip: (req) => {
         // Pular para rotas de atualização de apostas (elas têm rate limiter próprio)
         const path = req.path || req.url || '';
-        return path.includes('/api/apostas/') && req.method === 'PUT' ||
-            path.includes('/api/telegram/update-bet-message/');
+        // Pular rate limiting para criação de apostas (permite CSV bulk imports)
+        return (path.includes('/api/apostas/') && req.method === 'PUT') ||
+            path.includes('/api/telegram/update-bet-message/') ||
+            (path === '/api/apostas' && req.method === 'POST');
     },
     // Função customizada para identificar o IP de forma segura
     keyGenerator: (req) => {

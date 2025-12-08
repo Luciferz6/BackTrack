@@ -22,6 +22,36 @@ const getSupportBotToken = () => {
 const ensureConfig = () => {
     getTelegramBotToken();
 };
+const extractCommandParam = (text) => {
+    if (!text)
+        return null;
+    const trimmed = text.trim();
+    if (!trimmed)
+        return null;
+    const [, ...rest] = trimmed.split(/\s+/);
+    if (rest.length === 0)
+        return null;
+    const rawParam = rest.join(' ').trim();
+    if (!rawParam)
+        return null;
+    try {
+        return decodeURIComponent(rawParam);
+    }
+    catch {
+        return rawParam;
+    }
+};
+const normalizeAccountId = (value) => {
+    if (!value)
+        return null;
+    const trimmed = value.trim();
+    if (!trimmed)
+        return null;
+    const cleaned = trimmed.replace(/[^a-zA-Z0-9_-]/g, '');
+    if (!cleaned)
+        return null;
+    return cleaned.toLowerCase();
+};
 const sendTelegramMessage = async (chatId, text, replyMarkup, replyToMessageId, useSupportBot = false) => {
     try {
         const token = useSupportBot ? getSupportBotToken() : getTelegramBotToken();
@@ -792,11 +822,14 @@ router.post('/webhook', async (req, res) => {
         }
         // Processar comando /start para vinculação automática
         if (message.text && message.text.startsWith('/start')) {
-            const parts = message.text.split(' ');
-            const param = parts.length > 1 ? parts[1] : null;
+            const rawParam = extractCommandParam(message.text);
             // Verificar se é uma chamada de suporte
-            if (param && param.startsWith('support_')) {
-                const accountId = param.replace('support_', '');
+            if (rawParam && rawParam.startsWith('support_')) {
+                const accountId = normalizeAccountId(rawParam.replace('support_', ''));
+                if (!accountId) {
+                    await sendTelegramMessage(message.chat.id, '❌ ID inválido. Copie novamente o ID exibido no perfil e tente outra vez.');
+                    return res.json({ ok: true });
+                }
                 // Verificar se a conta existe
                 const account = await prisma.user.findUnique({
                     where: { id: accountId }
@@ -825,7 +858,7 @@ router.post('/webhook', async (req, res) => {
                 return res.json({ ok: true });
             }
             // Processamento normal do /start para vinculação
-            const accountId = param;
+            const accountId = normalizeAccountId(rawParam);
             if (accountId) {
                 // Verificar se a conta existe
                 const account = await prisma.user.findUnique({
@@ -879,8 +912,8 @@ router.post('/webhook', async (req, res) => {
         }
         // Processar comando /id para vinculação manual
         if (message.text && message.text.startsWith('/id')) {
-            const parts = message.text.split(' ');
-            const accountId = parts.length > 1 ? parts[1] : null;
+            const rawAccountId = extractCommandParam(message.text);
+            const accountId = normalizeAccountId(rawAccountId);
             if (!accountId) {
                 await sendTelegramMessage(message.chat.id, '❌ Uso: /id <ID_DA_CONTA>\n\nExemplo: /id 268b85d8-dbe4-47d9-98cd-846cc17ab7dc');
                 return res.json({ ok: true });

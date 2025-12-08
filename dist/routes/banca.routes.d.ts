@@ -36,16 +36,19 @@ export declare const updateBancaSchema: z.ZodObject<{
     descricao: z.ZodOptional<z.ZodString>;
     status: z.ZodOptional<z.ZodEnum<["Ativa", "Inativa"]>>;
     ePadrao: z.ZodOptional<z.ZodBoolean>;
+    saldoInicial: z.ZodOptional<z.ZodEffects<z.ZodNumber, number, unknown>>;
 }, "strip", z.ZodTypeAny, {
     status?: "Ativa" | "Inativa" | undefined;
     nome?: string | undefined;
     descricao?: string | undefined;
     ePadrao?: boolean | undefined;
+    saldoInicial?: number | undefined;
 }, {
     status?: "Ativa" | "Inativa" | undefined;
     nome?: string | undefined;
     descricao?: string | undefined;
     ePadrao?: boolean | undefined;
+    saldoInicial?: unknown;
 }>;
 export declare const sanitizeBankroll: <T extends Record<string, unknown>>(banca: T) => Omit<T, "cor">;
 export default router;
