@@ -379,14 +379,10 @@ const formatBetMessage = (bet, banca) => {
         }
         const statusEmoji = bet.status === 'Ganha' ? '✅' : bet.status === 'Perdida' ? '❌' : '⏳';
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
-        // Formatar a linha de aposta (extrair o nome do jogador/equipe se possível)
-        let apostaText = bet.jogo || 'N/D';
-        if (bet.mercado && bet.mercado !== 'N/D') {
-            // Se o mercado não estiver já incluído no jogo, adicionar
-            if (!apostaText.includes(bet.mercado)) {
-                apostaText = `${apostaText} - ${bet.mercado}`;
-            }
-        }
+        // Formatar a linha de aposta priorizando o mercado detalhado quando existir
+        const apostaText = bet.mercado && bet.mercado !== 'N/D'
+            ? bet.mercado
+            : bet.jogo || 'N/D';
         return `✅ Bilhete processado com sucesso
 
 🆔 ID: ${bet.id}
