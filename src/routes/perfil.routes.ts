@@ -473,7 +473,6 @@ router.post('/promo-code', authenticate, async (req, res) => {
     });
 
     if (existingRedemption) {
-          promoExpiresAt: true,
       return res.status(400).json({ error: 'Você já utilizou este código.' });
     }
 
