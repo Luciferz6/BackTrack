@@ -2,7 +2,6 @@ import express from 'express';
 import fetch from 'node-fetch';
 import { config } from 'dotenv';
 import { prisma } from '../lib/prisma.js';
-import { processTicket } from '../services/ticketProcessor.js';
 import { emitBetEvent } from '../utils/betEvents.js';
 import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
@@ -441,6 +440,49 @@ const editMessageText = async (chatId, messageId, text, replyMarkup) => {
         log.error(error, 'Falha ao editar mensagem do Telegram');
     }
 };
+const editMessageReplyMarkup = async (chatId, messageId, replyMarkup) => {
+    try {
+        const token = getTelegramBotToken();
+        const body = {
+            chat_id: chatId,
+            message_id: messageId,
+            reply_markup: replyMarkup
+        };
+        console.log('=== EDITANDO REPLY MARKUP ===');
+        console.log('Chat ID:', chatId);
+        console.log('Message ID:', messageId);
+        console.log('Reply Markup:', JSON.stringify(replyMarkup, null, 2));
+        const response = await fetch(`https://api.telegram.org/bot${token}/editMessageReplyMarkup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            const errorText = await response.text();
+            console.error('Erro ao editar reply markup:', errorText);
+            log.error({
+                status: response.status,
+                errorText,
+                chatId,
+                messageId
+            }, 'Erro HTTP ao editar reply markup do Telegram');
+            return;
+        }
+        const result = await response.json();
+        if (!result.ok) {
+            console.error('Erro ao editar reply markup:', result.description);
+            log.error({ result, chatId, messageId }, 'Erro ao editar reply markup do Telegram');
+        }
+        else {
+            console.log('Reply markup editado com sucesso');
+            log.info({ chatId, messageId }, 'Reply markup editado com sucesso');
+        }
+    }
+    catch (error) {
+        console.error('Falha ao editar reply markup:', error);
+        log.error(error, 'Falha ao editar reply markup do Telegram');
+    }
+};
 const deleteMessage = async (chatId, messageId) => {
     try {
         const token = getTelegramBotToken();
@@ -472,6 +514,16 @@ const downloadTelegramFile = async (fileId) => {
     }
     const buffer = Buffer.from(await fileResp.arrayBuffer());
     return { base64: buffer.toString('base64'), filePath };
+};
+const STATUS_EMOJIS = {
+    Ganha: '✅',
+    Perdida: '❌',
+    Pendente: '⏳',
+    'Meio Ganha': '🌗',
+    'Meio Perdida': '🌘',
+    Reembolsada: '💱',
+    Cashout: '💰',
+    Void: '⚪️'
 };
 const formatBetMessage = (bet, banca) => {
     try {
@@ -514,11 +566,36 @@ const formatBetMessage = (bet, banca) => {
         const valorApostado = bet.valorApostado || 0;
         const odd = bet.odd || 1;
         const retornoPotencial = valorApostado * odd;
-        const lucroPrejuizo = bet.status === 'Ganha' && bet.retornoObtido
-            ? bet.retornoObtido - valorApostado
-            : bet.status === 'Perdida'
-                ? -valorApostado
-                : null;
+        let lucroPrejuizo = null;
+        const retornoValido = typeof bet.retornoObtido === 'number' ? bet.retornoObtido : null;
+        switch (bet.status) {
+            case 'Ganha':
+                lucroPrejuizo = retornoValido !== null ? retornoValido - valorApostado : null;
+                break;
+            case 'Perdida':
+                lucroPrejuizo = -valorApostado;
+                break;
+            case 'Meio Ganha':
+                if (retornoValido !== null) {
+                    lucroPrejuizo = (retornoValido - valorApostado) / 2;
+                }
+                else {
+                    const potencialLucro = retornoPotencial - valorApostado;
+                    lucroPrejuizo = potencialLucro / 2;
+                }
+                break;
+            case 'Meio Perdida':
+                lucroPrejuizo = -valorApostado / 2;
+                break;
+            case 'Reembolsada':
+                lucroPrejuizo = 0;
+                break;
+            case 'Cashout':
+                lucroPrejuizo = retornoValido !== null ? retornoValido - valorApostado : null;
+                break;
+            default:
+                lucroPrejuizo = null;
+        }
         let lucroPrejuizoText = 'Sem lucro ou prejuízo.';
         if (lucroPrejuizo !== null) {
             if (lucroPrejuizo > 0) {
@@ -531,7 +608,7 @@ const formatBetMessage = (bet, banca) => {
                 lucroPrejuizoText = 'Sem lucro ou prejuízo.';
             }
         }
-        const statusEmoji = bet.status === 'Ganha' ? '✅' : bet.status === 'Perdida' ? '❌' : '⏳';
+        const statusEmoji = STATUS_EMOJIS[bet.status] || '⏳';
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
         const marketLines = extractMarketSelections(bet.mercado);
@@ -602,7 +679,6 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
     }
     // Criar URLs para Web Apps (com https:// se necessário)
     let editWebAppUrl = null;
-    let statusWebAppUrl = null;
     if (frontendUrl) {
         // Garantir que a URL tenha https://
         let baseUrl = frontendUrl.trim();
@@ -614,19 +690,16 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
         // Incluir messageId e chatId na URL se disponíveis
         if (messageId && chatId) {
             editWebAppUrl = `${baseUrl}/telegram/edit?betId=${betId}&messageId=${messageId}&chatId=${chatId}`;
-            statusWebAppUrl = `${baseUrl}/telegram/status?betId=${betId}&messageId=${messageId}&chatId=${chatId}`;
         }
         else {
             editWebAppUrl = `${baseUrl}/telegram/edit?betId=${betId}`;
-            statusWebAppUrl = `${baseUrl}/telegram/status?betId=${betId}`;
         }
         console.log('✅ URLs do Web App criadas:');
         console.log('  Editar:', editWebAppUrl);
-        console.log('  Status:', statusWebAppUrl);
     }
     // Usar Web Apps se disponível, senão usar callbacks
     let keyboard;
-    if (editWebAppUrl && statusWebAppUrl) {
+    if (editWebAppUrl) {
         // Usar Web Apps para abrir modais automaticamente
         keyboard = {
             inline_keyboard: [
@@ -635,7 +708,7 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
                     { text: '🗑️ Excluir', callback_data: excluirCallback }
                 ],
                 [
-                    { text: '📚 Alterar Status', web_app: { url: statusWebAppUrl } }
+                    { text: '📚 Alterar Status', callback_data: statusCallback }
                 ]
             ]
         };
@@ -680,6 +753,46 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
         totalButtons: keyboard.inline_keyboard.reduce((acc, row) => acc + row.length, 0)
     }, 'Criando botões inline para aposta');
     return keyboard;
+};
+const STATUS_ACTIONS = {
+    GANHA: { text: '✅ Ganha', value: 'Ganha' },
+    PERDIDA: { text: '❌ Perdida', value: 'Perdida' },
+    PENDENTE: { text: '⏳ Pendente', value: 'Pendente' },
+    MEIO_GANHA: { text: '🌗 Meio-Ganha', value: 'Meio Ganha' },
+    MEIO_PERDIDA: { text: '🌘 Meio-Perdida', value: 'Meio Perdida' },
+    REEMBOLSADA: { text: '💱 Reembolsada', value: 'Reembolsada' }
+};
+const STATUS_KEYBOARD_LAYOUT = [
+    ['GANHA', 'PERDIDA'],
+    ['PENDENTE'],
+    ['MEIO_GANHA', 'MEIO_PERDIDA'],
+    ['REEMBOLSADA']
+];
+const createStatusInlineKeyboard = (betId) => {
+    const rows = STATUS_KEYBOARD_LAYOUT.map((row) => row.map((key) => ({
+        text: STATUS_ACTIONS[key].text,
+        callback_data: `status:${key}:${betId}`
+    })));
+    rows.push([
+        {
+            text: '⬅️ Voltar para o bilhete',
+            callback_data: `status:BACK:${betId}`
+        }
+    ]);
+    return { inline_keyboard: rows };
+};
+const calculateRetornoObtidoFromStatus = (bet, status) => {
+    const valorApostado = bet.valorApostado || 0;
+    const odd = bet.odd || 1;
+    switch (status) {
+        case 'Ganha':
+        case 'Meio Ganha':
+            return Number((valorApostado * odd).toFixed(2));
+        case 'Reembolsada':
+            return Number(valorApostado.toFixed(2));
+        default:
+            return null;
+    }
 };
 router.post('/webhook', async (req, res) => {
     try {
@@ -946,16 +1059,92 @@ router.post('/webhook', async (req, res) => {
                                 return;
                             }
                             console.log('✓ Permissão confirmada');
-                            // Se chegou aqui via callback, significa que o botão não tinha web_app
-                            // Isso não deveria acontecer se FRONTEND_URL estiver configurado
-                            // Mas vamos informar o usuário
-                            await answerCallbackQuery(callbackQuery.id, 'Use o botão "Alterar Status" que abre o modal automaticamente. Se não aparecer, verifique a configuração do FRONTEND_URL.', true);
-                            log.warn({ betId }, 'Callback de status recebido, mas deveria usar Web App');
+                            if (!chatId || !messageId) {
+                                console.error('ERRO: Sem chatId ou messageId para atualizar teclado de status');
+                                await answerCallbackQuery(callbackQuery.id, 'Não foi possível mostrar as opções de status. Reenvie o bilhete e tente novamente.', true);
+                                return;
+                            }
+                            const statusKeyboard = createStatusInlineKeyboard(betId);
+                            await editMessageReplyMarkup(chatId, messageId, statusKeyboard);
+                            await answerCallbackQuery(callbackQuery.id, 'Selecione o novo status para este bilhete.');
+                            log.info({ betId, userId: user.id }, 'Exibindo teclado de status no Telegram');
                             return;
                         }
                         catch (error) {
                             log.error({ error, betId: callbackData.replace('alterar_status_', '') }, 'Erro ao processar alteração de status');
                             await answerCallbackQuery(callbackQuery.id, 'Erro ao processar alteração de status. Tente novamente.', true);
+                            return;
+                        }
+                    }
+                    if (callbackData.startsWith('status:')) {
+                        try {
+                            const parts = callbackData.split(':');
+                            const action = parts[1];
+                            const betId = parts[2];
+                            if (!action || !betId) {
+                                console.error('ERRO: Callback de status mal formatado');
+                                await answerCallbackQuery(callbackQuery.id, 'Não foi possível identificar o status selecionado.', true);
+                                return;
+                            }
+                            if (!chatId || !messageId) {
+                                console.error('ERRO: Sem chatId ou messageId ao processar status');
+                                await answerCallbackQuery(callbackQuery.id, 'Não foi possível atualizar este bilhete agora.', true);
+                                return;
+                            }
+                            if (action === 'BACK') {
+                                const keyboard = createBetInlineKeyboard(betId, messageId, chatId);
+                                await editMessageReplyMarkup(chatId, messageId, keyboard);
+                                await answerCallbackQuery(callbackQuery.id, 'Voltando para o bilhete.');
+                                return;
+                            }
+                            const statusConfig = STATUS_ACTIONS[action];
+                            if (!statusConfig) {
+                                console.warn({ action }, 'Status selecionado não reconhecido');
+                                await answerCallbackQuery(callbackQuery.id, 'Status não reconhecido.', true);
+                                return;
+                            }
+                            const aposta = await prisma.bet.findFirst({
+                                where: { id: betId },
+                                include: {
+                                    banca: true
+                                }
+                            });
+                            if (!aposta || aposta.banca.usuarioId !== user.id) {
+                                console.error('ERRO: Aposta não encontrada ou sem permissão para atualizar status');
+                                log.warn({ betId, userId: user.id }, 'Tentativa inválida de atualizar status via Telegram');
+                                await answerCallbackQuery(callbackQuery.id, 'Aposta não encontrada ou sem permissão.', true);
+                                return;
+                            }
+                            const retornoObtido = calculateRetornoObtidoFromStatus(aposta, statusConfig.value);
+                            const updatedBet = await prisma.bet.update({
+                                where: { id: aposta.id },
+                                data: {
+                                    status: statusConfig.value,
+                                    retornoObtido
+                                },
+                                include: {
+                                    banca: true
+                                }
+                            });
+                            emitBetEvent({
+                                userId: user.id,
+                                type: 'updated',
+                                payload: { betId: updatedBet.id }
+                            });
+                            let mensagemAtualizada = formatBetMessage(updatedBet, updatedBet.banca);
+                            if (mensagemAtualizada.length > 4096) {
+                                log.warn({ betId: updatedBet.id, messageLength: mensagemAtualizada.length }, 'Mensagem muito longa ao atualizar status via Telegram, truncando');
+                                mensagemAtualizada = `${mensagemAtualizada.substring(0, 4000)}\n\n... (mensagem truncada)`;
+                            }
+                            const keyboard = createBetInlineKeyboard(updatedBet.id, messageId, chatId);
+                            await editMessageText(chatId, messageId, mensagemAtualizada, keyboard);
+                            await answerCallbackQuery(callbackQuery.id, `Status atualizado para ${statusConfig.value}!`);
+                            log.info({ betId: updatedBet.id, status: statusConfig.value, userId: user.id }, 'Status atualizado via Telegram');
+                            return;
+                        }
+                        catch (error) {
+                            log.error({ error, callbackData }, 'Erro ao processar atualização de status via teclado inline');
+                            await answerCallbackQuery(callbackQuery.id, 'Erro ao atualizar o status. Tente novamente.', true);
                             return;
                         }
                     }
@@ -1244,27 +1433,17 @@ router.post('/webhook', async (req, res) => {
             normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
         }
         catch (serviceError) {
-            log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo, tentando fallback local');
-            try {
-                normalizedData = await processTicket({
-                    base64Image: base64,
-                    mimeType,
-                    ocrText: message.caption || ''
-                });
-            }
-            catch (processingError) {
-                log.error({ error: processingError }, 'Falha ao processar bilhete via IA');
-                if (processingMessageId) {
-                    try {
-                        await deleteMessage(message.chat.id, processingMessageId);
-                    }
-                    catch (deleteProcessingError) {
-                        log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
-                    }
+            log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo');
+            if (processingMessageId) {
+                try {
+                    await deleteMessage(message.chat.id, processingMessageId);
                 }
-                await sendTelegramMessage(message.chat.id, '❌ Não conseguimos interpretar este bilhete no momento. Verifique se o bot está com a IA configurada e tente reenviar em alguns minutos.', undefined, message.message_id);
-                return res.json({ ok: true });
+                catch (deleteProcessingError) {
+                    log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
+                }
             }
+            await sendTelegramMessage(message.chat.id, '❌ Não conseguimos processar este bilhete via BilheteTracker. Tente novamente em alguns minutos.', undefined, message.message_id);
+            return res.json({ ok: true });
         }
         // Priorizar valores do caption se disponíveis, senão usar os extraídos pela IA
         const casaDeAposta = casaDeApostaFromCaption || normalizedData.casaDeAposta || 'N/D';

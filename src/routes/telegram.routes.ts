@@ -3,8 +3,6 @@ import fetch from 'node-fetch';
 import type { Bankroll, Bet } from '@prisma/client';
 import { config } from 'dotenv';
 import { prisma } from '../lib/prisma.js';
-import { processTicket } from '../services/ticketProcessor.js';
-import type { NormalizedTicketData } from '../services/ticketProcessor.js';
 import { emitBetEvent } from '../utils/betEvents.js';
 import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
@@ -54,6 +52,21 @@ type BilheteTrackerResponse = {
   ticket?: BilheteTrackerTicket;
   error?: string;
   message?: string;
+};
+
+type NormalizedTicketData = {
+  casaDeAposta: string;
+  tipster: string;
+  esporte: string;
+  jogo: string;
+  torneio: string;
+  pais: string;
+  mercado: string;
+  tipoAposta: string;
+  valorApostado: number;
+  odd: number;
+  dataJogo: string;
+  status: string;
 };
 
 const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): NormalizedTicketData => ({
@@ -1646,34 +1659,24 @@ router.post('/webhook', async (req, res) => {
       // Não enviar caption como ocrText para permitir que o serviço execute o OCR completo
       normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
     } catch (serviceError) {
-      log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo, tentando fallback local');
+      log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo');
 
-      try {
-        normalizedData = await processTicket({
-          base64Image: base64,
-          mimeType,
-          ocrText: message.caption || ''
-        });
-      } catch (processingError) {
-        log.error({ error: processingError }, 'Falha ao processar bilhete via IA');
-
-        if (processingMessageId) {
-          try {
-            await deleteMessage(message.chat.id, processingMessageId);
-          } catch (deleteProcessingError) {
-            log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
-          }
+      if (processingMessageId) {
+        try {
+          await deleteMessage(message.chat.id, processingMessageId);
+        } catch (deleteProcessingError) {
+          log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
         }
-
-        await sendTelegramMessage(
-          message.chat.id,
-          '❌ Não conseguimos interpretar este bilhete no momento. Verifique se o bot está com a IA configurada e tente reenviar em alguns minutos.',
-          undefined,
-          message.message_id
-        );
-
-        return res.json({ ok: true });
       }
+
+      await sendTelegramMessage(
+        message.chat.id,
+        '❌ Não conseguimos processar este bilhete via BilheteTracker. Tente novamente em alguns minutos.',
+        undefined,
+        message.message_id
+      );
+
+      return res.json({ ok: true });
     }
 
     // Priorizar valores do caption se disponíveis, senão usar os extraídos pela IA
