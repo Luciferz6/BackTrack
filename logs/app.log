@@ -32,3 +32,12 @@
 {"level":"INFO","time":"2025-12-07T14:10:53.471Z","pid":10316,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
 {"level":"INFO","time":"2025-12-07T14:20:13.995Z","pid":11632,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com","http://localhost:5173","http://127.0.0.1:5173"],"msg":"CORS configurado com lista branca"}
 {"level":"INFO","time":"2025-12-07T14:20:14.264Z","pid":11632,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-07T14:20:16.377Z","pid":15732,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com","http://localhost:5173","http://127.0.0.1:5173"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-07T14:20:16.660Z","pid":15732,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-07T14:20:18.265Z","pid":15732,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
+{"level":"INFO","time":"2025-12-08T18:03:00.495Z","pid":6860,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com","http://localhost:5173","http://127.0.0.1:5173"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-08T18:03:00.796Z","pid":6860,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-08T18:03:03.395Z","pid":6860,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
+{"level":"INFO","time":"2025-12-09T00:18:00.323Z","pid":12276,"hostname":"DESKTOP-H41K160","origins":["https://realtracker.site","https://realtrack.vercel.app","https://real-tracker2-0.vercel.app","https://backtrack-msc1.onrender.com","http://localhost:5173","http://127.0.0.1:5173"],"msg":"CORS configurado com lista branca"}
+{"level":"INFO","time":"2025-12-09T00:18:00.649Z","pid":12276,"hostname":"DESKTOP-H41K160","msg":"Server running on port 3001"}
+{"level":"INFO","time":"2025-12-09T00:18:02.045Z","pid":12276,"hostname":"DESKTOP-H41K160","msg":"Banco de dados conectado com sucesso"}
