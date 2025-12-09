@@ -5,6 +5,7 @@ import { authenticate } from '../middleware/auth.js';
 import { z } from 'zod';
 import { sensitiveRateLimiter } from '../middleware/rateLimiter.js';
 import { log } from '../utils/logger.js';
+import { ensureActivePlan } from '../utils/planManager.js';
 // Removido uso de cache Redis
 
 const router = express.Router();
@@ -34,10 +35,19 @@ const updateTelegramSchema = z.object({
   ])
 });
 
+const redeemCodeSchema = z.object({
+  code: z.string().min(3)
+});
+
+const PROMO_CODE = 'realteste';
+const PROMO_USAGE_LIMIT = 17;
+const PROMO_DURATION_DAYS = 7;
+
 // PUT /api/perfil - Atualizar perfil do usuário
 router.put('/', authenticate, async (req, res) => {
   try {
     const userId = req.user!.userId;
+    await ensureActivePlan(userId);
     const data = updateProfileSchema.parse(req.body);
 
     const updateData: Record<string, unknown> = {};
@@ -87,6 +97,7 @@ router.put('/', authenticate, async (req, res) => {
         updatedAt: true,
         telegramId: true,
         telegramUsername: true,
+        promoExpiresAt: true,
         plano: {
           select: {
             id: true,
@@ -174,6 +185,7 @@ router.put('/senha', authenticate, sensitiveRateLimiter, async (req, res) => {
 router.get('/consumo', authenticate, async (req, res) => {
   try {
     const userId = req.user!.userId;
+    await ensureActivePlan(userId);
 
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -232,6 +244,7 @@ router.get('/consumo', authenticate, async (req, res) => {
 router.put('/plano', authenticate, async (req, res) => {
   try {
     const userId = req.user!.userId;
+    await ensureActivePlan(userId);
     const data = updatePlanSchema.parse(req.body);
 
     // Verificar se o plano existe
@@ -258,7 +271,8 @@ router.put('/plano', authenticate, async (req, res) => {
             preco: true,
             limiteApostasDiarias: true
           }
-        }
+        },
+        promoExpiresAt: true
       }
     });
 
@@ -277,6 +291,7 @@ router.put('/plano', authenticate, async (req, res) => {
 router.put('/telegram', authenticate, async (req, res) => {
   try {
     const userId = req.user!.userId;
+    await ensureActivePlan(userId);
     const data = updateTelegramSchema.parse(req.body);
     const { telegramId } = data;
 
@@ -305,6 +320,7 @@ router.put('/telegram', authenticate, async (req, res) => {
         updatedAt: true,
         telegramId: true,
         telegramUsername: true,
+        promoExpiresAt: true,
         plano: {
           select: {
             id: true,
@@ -328,6 +344,7 @@ router.put('/telegram', authenticate, async (req, res) => {
 // GET /api/perfil/planos - Listar todos os planos disponíveis
 router.get('/planos', authenticate, async (req, res) => {
   try {
+    await ensureActivePlan(req.user!.userId);
     const plans = await prisma.plan.findMany({
       select: {
         id: true,
@@ -398,6 +415,7 @@ router.delete('/reset', authenticate, sensitiveRateLimiter, async (req, res) => 
 router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user!.userId;
+    await ensureActivePlan(userId);
     log.info({ userId }, 'Tentando carregar perfil do usuário');
     const user = await prisma.user.findUnique({
       where: { id: userId },
@@ -411,6 +429,7 @@ router.get('/', authenticate, async (req, res) => {
         updatedAt: true,
         telegramId: true,
         telegramUsername: true,
+        promoExpiresAt: true,
         plano: {
           select: {
             id: true,
@@ -430,6 +449,121 @@ router.get('/', authenticate, async (req, res) => {
   } catch (error: any) {
     log.error(error, 'Erro ao carregar perfil');
     res.status(500).json({ error: error.message });
+  }
+});
+
+router.post('/promo-code', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    await ensureActivePlan(userId);
+    const { code } = redeemCodeSchema.parse(req.body);
+    const normalizedCode = code.trim().toLowerCase();
+
+    if (normalizedCode !== PROMO_CODE) {
+      return res.status(400).json({ error: 'Código inválido.' });
+    }
+
+    const existingRedemption = await prisma.promoCodeRedemption.findUnique({
+      where: {
+        code_userId: {
+          code: PROMO_CODE,
+          userId
+        }
+      }
+    });
+
+    if (existingRedemption) {
+          promoExpiresAt: true,
+      return res.status(400).json({ error: 'Você já utilizou este código.' });
+    }
+
+    const totalUses = await prisma.promoCodeRedemption.count({
+      where: { code: PROMO_CODE }
+    });
+
+    if (totalUses >= PROMO_USAGE_LIMIT) {
+      return res.status(400).json({ error: 'Este código promocional já expirou.' });
+    }
+
+    const professionalPlan = await prisma.plan.findUnique({ where: { nome: 'Profissional' } });
+    if (!professionalPlan) {
+      return res.status(500).json({ error: 'Plano profissional não encontrado.' });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        planoId: true,
+        promoOriginalPlanId: true,
+        promoExpiresAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({ error: 'Usuário não encontrado' });
+    }
+
+    const now = new Date();
+    if (user.promoExpiresAt && user.promoExpiresAt > now) {
+      return res.status(400).json({ error: 'Você já possui um plano promocional ativo.' });
+    }
+
+    const expiresAt = new Date(now.getTime() + PROMO_DURATION_DAYS * 24 * 60 * 60 * 1000);
+    const originalPlanId = user.promoOriginalPlanId ?? user.planoId;
+
+    await prisma.$transaction([
+      prisma.promoCodeRedemption.create({
+        data: {
+          code: PROMO_CODE,
+          userId
+        }
+      }),
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          planoId: professionalPlan.id,
+          promoOriginalPlanId: originalPlanId,
+          promoExpiresAt: expiresAt
+        }
+      })
+    ]);
+
+    const updated = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        nomeCompleto: true,
+        email: true,
+        fotoPerfil: true,
+        membroDesde: true,
+        statusConta: true,
+        updatedAt: true,
+        telegramId: true,
+        telegramUsername: true,
+        promoExpiresAt: true,
+        plano: {
+          select: {
+            id: true,
+            nome: true,
+            preco: true,
+            limiteApostasDiarias: true
+          }
+        }
+      }
+    });
+
+    res.json({
+      message: 'Plano Profissional liberado por 7 dias! Aproveite.',
+      expiresAt: expiresAt.toISOString(),
+      remainingUses: Math.max(0, PROMO_USAGE_LIMIT - (totalUses + 1)),
+      profile: updated
+    });
+  } catch (error) {
+    log.error(error, 'Erro ao resgatar código promocional');
+    if (error instanceof z.ZodError) {
+      return res.status(400).json({ error: error.errors });
+    }
+    res.status(500).json({ error: 'Erro ao aplicar código promocional' });
   }
 });
 
