@@ -737,6 +737,46 @@ ${apostaLine}
   }
 };
 
+const getFrontendBaseUrl = (): string | null => {
+  if (!process.env.FRONTEND_URL) {
+    return null;
+  }
+
+  let baseUrl = process.env.FRONTEND_URL.trim();
+  if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+    baseUrl = `https://${baseUrl}`;
+  }
+
+  return baseUrl.replace(/\/$/, '');
+};
+
+const buildEditWebAppUrl = (betId: string, messageId?: number, chatId?: number): string | null => {
+  const baseUrl = getFrontendBaseUrl();
+  if (!baseUrl) {
+    return null;
+  }
+
+  const params = new URLSearchParams({ betId });
+  if (typeof messageId === 'number') {
+    params.append('messageId', messageId.toString());
+  }
+  if (typeof chatId === 'number') {
+    params.append('chatId', chatId.toString());
+  }
+
+  return `${baseUrl}/telegram/edit?${params.toString()}`;
+};
+
+const keyboardHasWebAppButton = (keyboard: any): boolean => {
+  if (!keyboard?.inline_keyboard) {
+    return false;
+  }
+
+  return keyboard.inline_keyboard.some((row: any[]) =>
+    row.some((button: any) => Boolean(button?.web_app))
+  );
+};
+
 const createBetInlineKeyboard = (betId: string, messageId?: number, chatId?: number) => {
   const frontendUrl = process.env.FRONTEND_URL;
   const excluirCallback = `excluir_${betId}`;
@@ -769,25 +809,39 @@ const createBetInlineKeyboard = (betId: string, messageId?: number, chatId?: num
     }, 'Callback data excede limite do Telegram!');
   }
   
-  if (!frontendUrl) {
+  const editWebAppUrl = messageId && chatId ? buildEditWebAppUrl(betId, messageId, chatId) : null;
+  if (editWebAppUrl) {
+    console.log('✅ URL do WebApp para edição:', editWebAppUrl);
+  } else if (!frontendUrl) {
     console.warn('⚠️ FRONTEND_URL não configurado ou inválido, usando callbacks');
     console.warn('   Configure FRONTEND_URL com a URL completa (ex: https://seu-frontend.vercel.app)');
   } else {
-    console.log('✅ FRONTEND_URL configurado — modal será aberto via callback');
+    console.log('ℹ️ FRONTEND_URL definido, mas faltam messageId/chatId. Usando callbacks temporariamente.');
   }
 
-  // Sempre usamos callbacks para manter o comportamento de modal dentro do Telegram
-  const keyboard = {
-    inline_keyboard: [
-      [
-        { text: '✏️ Editar', callback_data: editarCallback },
-        { text: '🗑️ Excluir', callback_data: excluirCallback }
-      ],
-      [
-        { text: '📚 Alterar Status', callback_data: statusCallback }
-      ]
-    ]
-  };
+  const keyboard = editWebAppUrl
+    ? {
+        inline_keyboard: [
+          [
+            { text: '✏️ Editar', web_app: { url: editWebAppUrl } },
+            { text: '🗑️ Excluir', callback_data: excluirCallback }
+          ],
+          [
+            { text: '📚 Alterar Status', callback_data: statusCallback }
+          ]
+        ]
+      }
+    : {
+        inline_keyboard: [
+          [
+            { text: '✏️ Editar', callback_data: editarCallback },
+            { text: '🗑️ Excluir', callback_data: excluirCallback }
+          ],
+          [
+            { text: '📚 Alterar Status', callback_data: statusCallback }
+          ]
+        ]
+      };
   
   console.log('Keyboard criado:', JSON.stringify(keyboard, null, 2));
   console.log('Número de linhas:', keyboard.inline_keyboard.length);
@@ -1107,21 +1161,38 @@ router.post('/webhook', async (req, res) => {
           console.log('✓ Permissão confirmada');
           
           // Abrir WebApp de edição com messageId e chatId
-          const frontendUrl = process.env.FRONTEND_URL;
           const messageId = callbackQuery.message?.message_id;
           const chatId = callbackQuery.message?.chat?.id;
           
-          if (frontendUrl && messageId && chatId) {
-            const editUrl = `${frontendUrl}/telegram/edit?betId=${betId}&messageId=${messageId}&chatId=${chatId}`;
-            
-            await answerCallbackQuery(callbackQuery.id, '', false, editUrl);
-            
-            log.info({ betId, messageId, chatId }, 'Abrindo WebApp de edição com messageId e chatId');
+          if (messageId && chatId) {
+            try {
+              const upgradedKeyboard = createBetInlineKeyboard(betId, messageId, chatId);
+              if (keyboardHasWebAppButton(upgradedKeyboard)) {
+                await editMessageReplyMarkup(chatId, messageId, upgradedKeyboard);
+                await answerCallbackQuery(callbackQuery.id, 'Botão atualizado! Toque em ✏️ Editar novamente para abrir o editor.');
+                log.info({ betId, messageId, chatId }, 'Inline keyboard atualizado para WebApp via callback');
+                return;
+              }
+            } catch (error) {
+              log.warn({ error, betId, messageId, chatId }, 'Falha ao atualizar inline keyboard para WebApp');
+            }
+          }
+
+          const fallbackUrl = buildEditWebAppUrl(betId);
+          if (fallbackUrl && chatId) {
+            await sendTelegramMessage(chatId, 'Use o botão abaixo para abrir o editor.', {
+              inline_keyboard: [
+                [
+                  { text: '✏️ Abrir editor', web_app: { url: fallbackUrl } }
+                ]
+              ]
+            });
+            await answerCallbackQuery(callbackQuery.id, 'Enviei um botão com o editor. Caso não apareça, verifique se o FRONTEND_URL está correto.', true);
+            log.warn({ betId, chatId }, 'Fallback enviado para abrir editor do Telegram');
             return;
           }
-          
-          // Fallback: Se não tiver frontendUrl ou messageId/chatId, informar o usuário
-          await answerCallbackQuery(callbackQuery.id, 'Use o botão "Editar" que abre o modal automaticamente. Se não aparecer, verifique a configuração do FRONTEND_URL.', true);
+
+          await answerCallbackQuery(callbackQuery.id, 'Não foi possível abrir o editor agora. Verifique a configuração do FRONTEND_URL.', true);
           log.warn({ betId }, 'Callback de edição recebido, mas não foi possível abrir Web App');
           return;
         } catch (error) {
