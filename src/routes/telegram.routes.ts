@@ -769,62 +769,25 @@ const createBetInlineKeyboard = (betId: string, messageId?: number, chatId?: num
     }, 'Callback data excede limite do Telegram!');
   }
   
-  // Criar URLs para Web Apps (com https:// se necessário)
-  let editWebAppUrl: string | null = null;
-  
-  if (frontendUrl) {
-    // Garantir que a URL tenha https://
-    let baseUrl = frontendUrl.trim();
-    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-      baseUrl = `https://${baseUrl}`;
-    }
-    // Remover barra final se houver
-    baseUrl = baseUrl.replace(/\/$/, '');
-    
-    // Incluir messageId e chatId na URL se disponíveis
-    if (messageId && chatId) {
-      editWebAppUrl = `${baseUrl}/telegram/edit?betId=${betId}&messageId=${messageId}&chatId=${chatId}`;
-    } else {
-      editWebAppUrl = `${baseUrl}/telegram/edit?betId=${betId}`;
-    }
-    
-    console.log('✅ URLs do Web App criadas:');
-    console.log('  Editar:', editWebAppUrl);
-  }
-  
-  // Usar Web Apps se disponível, senão usar callbacks
-  let keyboard: any;
-  
-  if (editWebAppUrl) {
-    // Usar Web Apps para abrir modais automaticamente
-    keyboard = {
-      inline_keyboard: [
-        [
-          { text: '✏️ Editar', web_app: { url: editWebAppUrl } },
-          { text: '🗑️ Excluir', callback_data: excluirCallback }
-        ],
-        [
-          { text: '📚 Alterar Status', callback_data: statusCallback }
-        ]
-      ]
-    };
-    console.log('✅ Usando Web Apps para abrir modais automaticamente');
-  } else {
-    // Fallback: usar callbacks se não tiver frontend URL configurado
-    keyboard = {
-      inline_keyboard: [
-        [
-          { text: '✏️ Editar', callback_data: editarCallback },
-          { text: '🗑️ Excluir', callback_data: excluirCallback }
-        ],
-        [
-          { text: '📚 Alterar Status', callback_data: statusCallback }
-        ]
-      ]
-    };
+  if (!frontendUrl) {
     console.warn('⚠️ FRONTEND_URL não configurado ou inválido, usando callbacks');
     console.warn('   Configure FRONTEND_URL com a URL completa (ex: https://seu-frontend.vercel.app)');
+  } else {
+    console.log('✅ FRONTEND_URL configurado — modal será aberto via callback');
   }
+
+  // Sempre usamos callbacks para manter o comportamento de modal dentro do Telegram
+  const keyboard = {
+    inline_keyboard: [
+      [
+        { text: '✏️ Editar', callback_data: editarCallback },
+        { text: '🗑️ Excluir', callback_data: excluirCallback }
+      ],
+      [
+        { text: '📚 Alterar Status', callback_data: statusCallback }
+      ]
+    ]
+  };
   
   console.log('Keyboard criado:', JSON.stringify(keyboard, null, 2));
   console.log('Número de linhas:', keyboard.inline_keyboard.length);
