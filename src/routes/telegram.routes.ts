@@ -853,6 +853,11 @@ const STATUS_ACTIONS = {
 
 type StatusActionKey = keyof typeof STATUS_ACTIONS;
 
+type InlineButton = {
+  text: string;
+  callback_data: string;
+};
+
 const STATUS_KEYBOARD_LAYOUT: StatusActionKey[][] = [
   ['GANHA', 'PERDIDA'],
   ['PENDENTE'],
@@ -861,7 +866,7 @@ const STATUS_KEYBOARD_LAYOUT: StatusActionKey[][] = [
 ];
 
 const createStatusInlineKeyboard = (betId: string) => {
-  const rows = STATUS_KEYBOARD_LAYOUT.map((row) =>
+  const rows: InlineButton[][] = STATUS_KEYBOARD_LAYOUT.map((row) =>
     row.map((key) => ({
       text: STATUS_ACTIONS[key].text,
       callback_data: `status:${key}:${betId}`
