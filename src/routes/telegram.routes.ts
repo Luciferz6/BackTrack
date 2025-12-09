@@ -6,6 +6,7 @@ import { prisma } from '../lib/prisma.js';
 import { emitBetEvent } from '../utils/betEvents.js';
 import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
+import { normalizarEsporteParaOpcao } from '../utils/esportes.js';
 
 const router = express.Router();
 
@@ -72,7 +73,7 @@ type NormalizedTicketData = {
 const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): NormalizedTicketData => ({
   casaDeAposta: ticket.casaDeAposta || '',
   tipster: ticket.tipster || '',
-  esporte: ticket.esporte || '',
+  esporte: normalizarEsporteParaOpcao(ticket.esporte || '') || (ticket.esporte || ''),
   jogo: ticket.jogo || '',
   torneio: ticket.torneio || '',
   pais: ticket.pais || 'Mundo',
@@ -614,6 +615,7 @@ const STATUS_EMOJIS: Record<string, string> = {
 };
 
 const formatBetMessage = (bet: Bet, banca: Bankroll) => {
+  let esporteFormatado = normalizarEsporteParaOpcao(bet.esporte || '') || bet.esporte || '';
   try {
     const formatCurrency = (value: number) => {
       if (!value || isNaN(value)) return 'R$ 0,00';
@@ -719,7 +721,7 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
 💰 Banca: ${banca?.nome || 'N/D'}
 ${statusText}
 💎 ${lucroPrejuizoText}
-🏀 Esporte: ${bet.esporte || 'N/D'}
+🏀 Esporte: ${esporteFormatado || 'N/D'}
 🏆 Torneio: ${bet.torneio || 'N/D'}
 ⚔️ Evento: ${bet.jogo || 'N/D'}
 ${apostaLine}
@@ -733,7 +735,7 @@ ${apostaLine}
 👤 Tipster: ${bet.tipster || 'N/D'}`;
   } catch (error) {
     log.error(error, 'Erro ao formatar mensagem da aposta');
-    return `✅ Bilhete processado com sucesso!\n\n🆔 ID: ${bet.id}\n💰 Banca: ${banca?.nome || 'N/D'}\n🏀 Esporte: ${bet.esporte || 'N/D'}`;
+    return `✅ Bilhete processado com sucesso!\n\n🆔 ID: ${bet.id}\n💰 Banca: ${banca?.nome || 'N/D'}\n🏀 Esporte: ${esporteFormatado || 'N/D'}`;
   }
 };
 
@@ -1839,13 +1841,14 @@ router.post('/webhook', async (req, res) => {
         } catch (formatError) {
           log.error(formatError, 'Erro ao formatar mensagem, usando mensagem simplificada');
           // Mensagem simplificada mas completa
+          const esporteFallback = normalizarEsporteParaOpcao(apostaCompleta.esporte || '') || apostaCompleta.esporte || 'N/D';
           mensagemFormatada = `✅ Bilhete processado com sucesso!
 
 🆔 ID: ${apostaCompleta.id}
 💰 Banca: ${bancaPadrao.nome}
 ${apostaCompleta.status === 'Ganha' ? '✅' : apostaCompleta.status === 'Perdida' ? '❌' : '⏳'} Status: ${apostaCompleta.status || 'Pendente'}
 💎 ${apostaCompleta.status === 'Ganha' && apostaCompleta.retornoObtido ? `Lucro: R$ ${(apostaCompleta.retornoObtido - (apostaCompleta.valorApostado || 0)).toFixed(2).replace('.', ',')}` : apostaCompleta.status === 'Perdida' ? `Prejuízo: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}` : 'Sem lucro ou prejuízo.'}
-🏀 Esporte: ${apostaCompleta.esporte || 'N/D'}
+🏀 Esporte: ${esporteFallback}
 🏆 Torneio: ${apostaCompleta.torneio || 'N/D'}
 ⚔️ Evento: ${apostaCompleta.jogo || 'N/D'}
 🎯 Aposta: ${apostaCompleta.jogo || 'N/D'}${apostaCompleta.mercado && apostaCompleta.mercado !== 'N/D' ? ` - ${apostaCompleta.mercado}` : ''}

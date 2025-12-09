@@ -8,6 +8,7 @@ import { handleRouteError } from '../utils/errorHandler.js';
 import { buildBetWhere } from '../utils/buildBetWhere.js';
 import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
+import { normalizarEsporteParaOpcao } from '../utils/esportes.js';
 
 const router = express.Router();
 
@@ -101,10 +102,12 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       }
     }
 
+    const esporteNormalizado = normalizarEsporteParaOpcao(data.esporte) || data.esporte;
+
     const aposta = await prisma.bet.create({
       data: {
         bancaId: data.bancaId,
-        esporte: data.esporte,
+        esporte: esporteNormalizado,
         jogo: data.jogo,
         torneio: data.torneio,
         pais: data.pais,
@@ -392,7 +395,9 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
     } = {};
 
     if (data.bancaId) updateData.bancaId = data.bancaId;
-    if (data.esporte) updateData.esporte = data.esporte;
+    if (data.esporte) {
+      updateData.esporte = normalizarEsporteParaOpcao(data.esporte) || data.esporte;
+    }
     if (data.jogo) updateData.jogo = data.jogo;
     if (data.torneio !== undefined) updateData.torneio = data.torneio;
     if (data.pais !== undefined) updateData.pais = data.pais;
