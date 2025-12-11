@@ -46,6 +46,8 @@ type BilheteTrackerTicket = {
   odd?: number;
   dataJogo?: string;
   status?: string;
+  aposta?: string;
+  apostaDetalhada?: string;
 };
 
 type BilheteTrackerResponse = {
