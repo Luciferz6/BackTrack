@@ -23,12 +23,21 @@ const createApostaSchema = z.object({
   valorApostado: z.number().positive('Valor deve ser positivo').max(1000000, 'Valor muito alto'),
   odd: z.number().positive('Odd deve ser positiva').max(1000, 'Odd muito alta'),
   bonus: z.number().min(0, 'Bônus não pode ser negativo').max(1000000, 'Bônus muito alto').default(0),
-  dataJogo: z.string().datetime('Data inválida'),
+  dataEvento: z.string().datetime('Data inválida').optional(),
+  dataJogo: z.string().datetime('Data inválida').optional(),
   tipster: z.string().max(100, 'Nome do tipster muito longo').optional(),
   status: z.string().max(50, 'Status muito longo').default('Pendente'),
   casaDeAposta: z.string().min(1).max(100, 'Nome da casa de aposta muito longo'),
   retornoObtido: z.number().min(0, 'Retorno não pode ser negativo').max(10000000, 'Retorno muito alto').optional(),
   aposta: z.string().max(1000, 'Descrição da aposta muito longa').optional()
+}).superRefine((value, ctx) => {
+  if (!value.dataEvento && !value.dataJogo) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['dataEvento'],
+      message: 'Data do evento é obrigatória',
+    });
+  }
 });
 
 const updateApostaSchema = z.object({
@@ -42,12 +51,34 @@ const updateApostaSchema = z.object({
   valorApostado: z.number().positive('Valor deve ser positivo').max(1000000, 'Valor muito alto').optional(),
   odd: z.number().positive('Odd deve ser positiva').max(1000, 'Odd muito alta').optional(),
   bonus: z.number().min(0, 'Bônus não pode ser negativo').max(1000000, 'Bônus muito alto').optional(),
+  dataEvento: z.string().datetime('Data inválida').optional(),
   dataJogo: z.string().datetime('Data inválida').optional(),
   tipster: z.string().max(100, 'Nome do tipster muito longo').optional(),
   status: z.string().max(50, 'Status muito longo').optional(),
   casaDeAposta: z.string().min(1).max(100, 'Nome da casa de aposta muito longo').optional(),
   retornoObtido: z.union([z.number().min(0).max(10000000), z.null()]).optional(),
   aposta: z.string().max(1000, 'Descrição da aposta muito longa').optional()
+});
+
+const resolveEventoDate = (input: { dataEvento?: string; dataJogo?: string }): Date | null => {
+  const isoString = input.dataEvento ?? input.dataJogo;
+  if (!isoString) {
+    return null;
+  }
+
+  const parsed = new Date(isoString);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const serializeBet = <T extends {
+  jogo?: string | null;
+  evento?: string | null;
+  dataJogo?: Date | string | null;
+  dataEvento?: Date | string | null;
+}>(bet: T) => ({
+  ...bet,
+  evento: bet.evento ?? bet.jogo ?? null,
+  dataEvento: bet.dataEvento ?? bet.dataJogo ?? null,
 });
 
 // POST /api/apostas - Registrar nova aposta
@@ -105,6 +136,11 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     }
 
     const esporteNormalizado = normalizarEsporteParaOpcao(data.esporte) || data.esporte;
+    const dataEventoDate = resolveEventoDate(data);
+
+    if (!dataEventoDate) {
+      return res.status(400).json({ error: 'Data do evento inválida' });
+    }
 
     const aposta = await prisma.bet.create({
       data: {
@@ -118,7 +154,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         valorApostado: data.valorApostado,
         odd: data.odd,
         bonus: data.bonus || 0,
-        dataJogo: new Date(data.dataJogo),
+        dataJogo: dataEventoDate,
         tipster: data.tipster,
         status: data.status || 'Pendente',
         casaDeAposta: data.casaDeAposta,
@@ -127,13 +163,15 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       }
     });
 
+    const serializedAposta = serializeBet(aposta);
+
     emitBetEvent({
       userId,
       type: 'created',
       payload: { betId: aposta.id }
     });
 
-    res.json(aposta);
+    res.json(serializedAposta);
   } catch (error) {
     handleRouteError(error, res);
   }
@@ -238,6 +276,12 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
 
     for (const { index, data } of validatedBets) {
       try {
+        const dataEventoDate = resolveEventoDate(data);
+
+        if (!dataEventoDate) {
+          throw new Error('Data do evento inválida');
+        }
+
         const aposta = await prisma.bet.create({
           data: {
             bancaId: data.bancaId,
@@ -250,7 +294,7 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
             valorApostado: data.valorApostado,
             odd: data.odd,
             bonus: data.bonus || 0,
-            dataJogo: new Date(data.dataJogo),
+            dataJogo: dataEventoDate,
             tipster: data.tipster,
             status: data.status || 'Pendente',
             casaDeAposta: data.casaDeAposta,
@@ -353,7 +397,7 @@ router.get('/', authenticateToken, async (req: AuthRequest, res) => {
       orderBy: { dataJogo: 'desc' }
     });
 
-    res.json(apostas);
+    res.json(apostas.map(serializeBet));
   } catch (error) {
     handleRouteError(error, res);
   }
@@ -383,7 +427,7 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
     const updateData: {
       bancaId?: string;
       esporte?: string;
-      evento?: string;
+      jogo?: string;
       torneio?: string | null;
       pais?: string | null;
       mercado?: string;
@@ -410,7 +454,8 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
     if (data.valorApostado) updateData.valorApostado = data.valorApostado;
     if (data.odd) updateData.odd = data.odd;
     if (data.bonus !== undefined) updateData.bonus = data.bonus;
-    if (data.dataJogo) updateData.dataJogo = new Date(data.dataJogo);
+    const updatedDate = resolveEventoDate(data);
+    if (updatedDate) updateData.dataJogo = updatedDate;
     if (data.tipster !== undefined) updateData.tipster = data.tipster;
     if (data.status) updateData.status = data.status;
     if (data.casaDeAposta) updateData.casaDeAposta = data.casaDeAposta;
@@ -424,13 +469,15 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
       data: updateData
     });
 
+    const serializedUpdated = serializeBet(updated);
+
     emitBetEvent({
       userId,
       type: 'updated',
       payload: { betId: updated.id }
     });
 
-    res.json(updated);
+    res.json(serializedUpdated);
   } catch (error) {
     handleRouteError(error, res);
   }
