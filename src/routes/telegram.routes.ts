@@ -73,6 +73,26 @@ type NormalizedTicketData = {
   aposta?: string;
 };
 
+const normalizeDateValue = (raw?: string | null): string => {
+  if (!raw) return '';
+  const value = raw.trim();
+  if (!value) return '';
+
+  // Retorna diretamente se já estiver em um formato ISO parseável
+  const isoMatch = value.match(/^\d{4}-\d{2}-\d{2}/);
+  if (isoMatch) {
+    return value;
+  }
+
+  const brMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+  if (brMatch) {
+    const [, day, month, year, hour = '00', minute = '00', second = '00'] = brMatch;
+    return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+  }
+
+  return '';
+};
+
 const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): NormalizedTicketData => ({
   casaDeAposta: ticket.casaDeAposta || '',
   tipster: ticket.tipster || '',
@@ -84,7 +104,7 @@ const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): Normalized
   tipoAposta: ticket.tipoAposta || 'Simples',
   valorApostado: typeof ticket.valorApostado === 'number' ? ticket.valorApostado : Number(ticket.valorApostado) || 0,
   odd: typeof ticket.odd === 'number' ? ticket.odd : Number(ticket.odd) || 0,
-  dataJogo: ticket.dataJogo || '',
+  dataJogo: normalizeDateValue(ticket.dataJogo),
   status: ticket.status || 'Pendente',
   aposta: ticket.aposta || ticket.apostaDetalhada || ''
 });
