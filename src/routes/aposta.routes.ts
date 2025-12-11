@@ -15,7 +15,7 @@ const router = express.Router();
 const createApostaSchema = z.object({
   bancaId: z.string().uuid('ID de banca inválido'),
   esporte: z.string().min(1).max(100, 'Nome do esporte muito longo'),
-  jogo: z.string().min(1).max(200, 'Nome do jogo muito longo'),
+  evento: z.string().min(1).max(200, 'Nome do evento muito longo'),
   torneio: z.string().max(200, 'Nome do torneio muito longo').optional(),
   pais: z.string().max(100, 'Nome do país muito longo').optional(),
   mercado: z.string().min(1),
@@ -34,7 +34,7 @@ const createApostaSchema = z.object({
 const updateApostaSchema = z.object({
   bancaId: z.string().uuid('ID de banca inválido').optional(),
   esporte: z.string().min(1).max(100, 'Nome do esporte muito longo').optional(),
-  jogo: z.string().min(1).max(200, 'Nome do jogo muito longo').optional(),
+  evento: z.string().min(1).max(200, 'Nome do evento muito longo').optional(),
   torneio: z.string().max(200, 'Nome do torneio muito longo').optional(),
   pais: z.string().max(100, 'Nome do país muito longo').optional(),
   mercado: z.string().min(1).optional(),
@@ -110,7 +110,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       data: {
         bancaId: data.bancaId,
         esporte: esporteNormalizado,
-        jogo: data.jogo,
+        jogo: data.evento,
         torneio: data.torneio,
         pais: data.pais,
         mercado: data.mercado,
@@ -242,7 +242,7 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
           data: {
             bancaId: data.bancaId,
             esporte: data.esporte,
-            jogo: data.jogo,
+            jogo: data.evento,
             torneio: data.torneio,
             pais: data.pais,
             mercado: data.mercado,
@@ -383,7 +383,7 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
     const updateData: {
       bancaId?: string;
       esporte?: string;
-      jogo?: string;
+      evento?: string;
       torneio?: string | null;
       pais?: string | null;
       mercado?: string;
@@ -402,7 +402,7 @@ router.put('/:id', authenticateToken, betUpdateRateLimiter, async (req: AuthRequ
     if (data.esporte) {
       updateData.esporte = normalizarEsporteParaOpcao(data.esporte) || data.esporte;
     }
-    if (data.jogo) updateData.jogo = data.jogo;
+    if (data.evento) updateData.jogo = data.evento;
     if (data.torneio !== undefined) updateData.torneio = data.torneio;
     if (data.pais !== undefined) updateData.pais = data.pais;
     if (data.mercado) updateData.mercado = data.mercado;
