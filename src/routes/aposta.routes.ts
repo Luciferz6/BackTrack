@@ -120,7 +120,8 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         tipster: data.tipster,
         status: data.status || 'Pendente',
         casaDeAposta: data.casaDeAposta,
-        retornoObtido: data.retornoObtido
+        retornoObtido: data.retornoObtido,
+        aposta: data.aposta // valor detalhado do parser
       }
     });
 
@@ -251,7 +252,8 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
             tipster: data.tipster,
             status: data.status || 'Pendente',
             casaDeAposta: data.casaDeAposta,
-            retornoObtido: data.retornoObtido
+            retornoObtido: data.retornoObtido,
+            aposta: data.aposta // valor detalhado do parser
           }
         });
         createdBets.push(aposta);

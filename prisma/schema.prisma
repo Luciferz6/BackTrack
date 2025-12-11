@@ -83,6 +83,7 @@ model Bet {
   pais          String?
   mercado       String
   tipoAposta    String
+  aposta String?
   valorApostado Float
   odd           Float
   bonus         Float    @default(0)

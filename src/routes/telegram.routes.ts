@@ -68,6 +68,7 @@ type NormalizedTicketData = {
   odd: number;
   dataJogo: string;
   status: string;
+  aposta?: string;
 };
 
 const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): NormalizedTicketData => ({
@@ -82,7 +83,8 @@ const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): Normalized
   valorApostado: typeof ticket.valorApostado === 'number' ? ticket.valorApostado : Number(ticket.valorApostado) || 0,
   odd: typeof ticket.odd === 'number' ? ticket.odd : Number(ticket.odd) || 0,
   dataJogo: ticket.dataJogo || '',
-  status: ticket.status || 'Pendente'
+  status: ticket.status || 'Pendente',
+  aposta: ticket.aposta || ticket.apostaDetalhada || ''
 });
 
 const processTicketViaBilheteTracker = async (base64Image: string, mimeType: string, ocrText?: string) => {
@@ -702,8 +704,12 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
 
     // Formatar a linha de aposta priorizando o mercado detalhado quando existir
     const marketLines = extractMarketSelections(bet.mercado);
+
+    // Se houver aposta, priorize ela na linha de aposta
     let apostaText: string;
-    if (marketLines.length > 1) {
+    if (bet.aposta && bet.aposta.trim() !== '') {
+      apostaText = bet.aposta.trim();
+    } else if (marketLines.length > 1) {
       apostaText = marketLines.map((line) => `• ${line}`).join('\n');
     } else if (marketLines.length === 1) {
       apostaText = marketLines[0];
@@ -1740,6 +1746,7 @@ router.post('/webhook', async (req, res) => {
             tipster: tipster || null,
             status: normalizedData.status || 'Pendente',
             casaDeAposta,
+            aposta: normalizedData.aposta || '',
             retornoObtido:
               normalizedData.status === 'Ganha'
                 ? (normalizedData.valorApostado || 0) * (normalizedData.odd || 1)
