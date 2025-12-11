@@ -27,7 +27,8 @@ const createApostaSchema = z.object({
   tipster: z.string().max(100, 'Nome do tipster muito longo').optional(),
   status: z.string().max(50, 'Status muito longo').default('Pendente'),
   casaDeAposta: z.string().min(1).max(100, 'Nome da casa de aposta muito longo'),
-  retornoObtido: z.number().min(0, 'Retorno não pode ser negativo').max(10000000, 'Retorno muito alto').optional()
+  retornoObtido: z.number().min(0, 'Retorno não pode ser negativo').max(10000000, 'Retorno muito alto').optional(),
+  aposta: z.string().max(1000, 'Descrição da aposta muito longa').optional()
 });
 
 const updateApostaSchema = z.object({
@@ -45,7 +46,8 @@ const updateApostaSchema = z.object({
   tipster: z.string().max(100, 'Nome do tipster muito longo').optional(),
   status: z.string().max(50, 'Status muito longo').optional(),
   casaDeAposta: z.string().min(1).max(100, 'Nome da casa de aposta muito longo').optional(),
-  retornoObtido: z.union([z.number().min(0).max(10000000), z.null()]).optional()
+  retornoObtido: z.union([z.number().min(0).max(10000000), z.null()]).optional(),
+  aposta: z.string().max(1000, 'Descrição da aposta muito longa').optional()
 });
 
 // POST /api/apostas - Registrar nova aposta
