@@ -740,8 +740,8 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     }
 
     const apostaLine = apostaText.includes('\n')
-      ? `🎯 Aposta:\n${apostaText}`
-      : `🎯 Aposta: ${apostaText}`;
+      ? `🎰 Aposta:\n${apostaText}`
+      : `🎰 Aposta: ${apostaText}`;
 
     return `✅ Bilhete processado com sucesso
 
@@ -753,10 +753,10 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
   🏆 Torneio: ${bet.torneio || 'N/D'}
   ⚔️ Evento: ${bet.jogo || 'N/D'}
   ${apostaLine}
-  📋 Mercado: ${formatMarketText(bet.mercado)}
-  💵 Valor Apostado: ${formatCurrency(valorApostado)}
-  📊 Odd: ${odd}
-  💚 Retorno Potencial: ${formatCurrency(retornoPotencial)}
+  🎯 Mercado: ${formatMarketText(bet.mercado)}
+  💰 Valor Apostado: ${formatCurrency(valorApostado)}
+  🎲 Odd: ${odd}
+  💵 Retorno Potencial: ${formatCurrency(retornoPotencial)}
   📄 Tipo: ${bet.tipoAposta || 'Simples'}
   📅 Data: ${formatDate(bet.dataJogo)}
   🎁 Bônus: ${(bet.bonus || 0) > 0 ? formatCurrency(bet.bonus) : 'Não'}
@@ -1858,14 +1858,14 @@ ${apostaCompleta.status === 'Ganha' ? '✅' : apostaCompleta.status === 'Perdida
 🏀 Esporte: ${esporteFallback}
 🏆 Torneio: ${apostaCompleta.torneio || 'N/D'}
 ⚔️ Evento: ${apostaCompleta.jogo || 'N/D'}
-🎯 Aposta: ${apostaCompleta.jogo || 'N/D'}${
+🎰 Aposta: ${apostaCompleta.jogo || 'N/D'}${
                 apostaCompleta.mercado && apostaCompleta.mercado !== 'N/D'
                   ? ` - ${apostaCompleta.mercado}`
                   : ''
               }
-💵 Valor Apostado: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}
-📊 Odd: ${apostaCompleta.odd || 1}
-💚 Retorno Potencial: R$ ${
+💰 Valor Apostado: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}
+🎲 Odd: ${apostaCompleta.odd || 1}
+💵 Retorno Potencial: R$ ${
                 ((apostaCompleta.valorApostado || 0) * (apostaCompleta.odd || 1)).toFixed(2).replace('.', ',')
               }
 📄 Tipo: ${apostaCompleta.tipoAposta || 'Simples'}
