@@ -717,22 +717,23 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
 
     return `✅ Bilhete processado com sucesso
 
-🆔 ID: ${bet.id}
-💰 Banca: ${banca?.nome || 'N/D'}
-${statusText}
-💎 ${lucroPrejuizoText}
-🏀 Esporte: ${esporteFormatado || 'N/D'}
-🏆 Torneio: ${bet.torneio || 'N/D'}
-⚔️ Evento: ${bet.jogo || 'N/D'}
-${apostaLine}
-💵 Valor Apostado: ${formatCurrency(valorApostado)}
-📊 Odd: ${odd}
-💚 Retorno Potencial: ${formatCurrency(retornoPotencial)}
-📄 Tipo: ${bet.tipoAposta || 'Simples'}
-📅 Data: ${formatDate(bet.dataJogo)}
-🎁 Bônus: ${(bet.bonus || 0) > 0 ? formatCurrency(bet.bonus) : 'Não'}
-🏠 Casa: ${bet.casaDeAposta || 'N/D'}
-👤 Tipster: ${bet.tipster || 'N/D'}`;
+  🆔 ID: ${bet.id}
+  💰 Banca: ${banca?.nome || 'N/D'}
+  ${statusText}
+  💎 ${lucroPrejuizoText}
+  🏀 Esporte: ${esporteFormatado || 'N/D'}
+  🏆 Torneio: ${bet.torneio || 'N/D'}
+  ⚔️ Evento: ${bet.jogo || 'N/D'}
+  ${apostaLine}
+  📋 Mercado: ${formatMarketText(bet.mercado)}
+  💵 Valor Apostado: ${formatCurrency(valorApostado)}
+  📊 Odd: ${odd}
+  💚 Retorno Potencial: ${formatCurrency(retornoPotencial)}
+  📄 Tipo: ${bet.tipoAposta || 'Simples'}
+  📅 Data: ${formatDate(bet.dataJogo)}
+  🎁 Bônus: ${(bet.bonus || 0) > 0 ? formatCurrency(bet.bonus) : 'Não'}
+  🏠 Casa: ${bet.casaDeAposta || 'N/D'}
+  👤 Tipster: ${bet.tipster || 'N/D'}`;
   } catch (error) {
     log.error(error, 'Erro ao formatar mensagem da aposta');
     return `✅ Bilhete processado com sucesso!\n\n🆔 ID: ${bet.id}\n💰 Banca: ${banca?.nome || 'N/D'}\n🏀 Esporte: ${esporteFormatado || 'N/D'}`;
