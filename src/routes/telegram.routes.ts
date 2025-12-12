@@ -1796,6 +1796,7 @@ router.post('/webhook', async (req, res) => {
         );
 
         let mensagemEnviadaComSucesso = false;
+        let reaproveitouMensagemDeProcessamento = false;
         try {
           if (apostaCompleta) {
             let keyboard: any;
@@ -1966,14 +1967,72 @@ ${apostaCompleta.status === 'Ganha' ? '✅' : apostaCompleta.status === 'Perdida
           }
         }
 
-        if (processingMessageId && mensagemEnviadaComSucesso) {
-          log.info({ processingMessageId }, 'Deletando mensagem de processando após envio bem-sucedido');
+        const fallbackSimpleMessage = `✅ Bilhete registrado com sucesso!\n\n🆔 ID: ${novaAposta.id}\n💰 Banca: ${bancaPadrao.nome}\nConsulte o painel para ver os detalhes completos.`;
+
+        if (!mensagemEnviadaComSucesso) {
+          const fallbackResult = await sendTelegramMessage(message.chat.id, fallbackSimpleMessage);
+          if (fallbackResult?.ok) {
+            mensagemEnviadaComSucesso = true;
+          }
+        }
+
+        if (!mensagemEnviadaComSucesso && processingMessageId) {
           try {
-            await deleteMessage(message.chat.id, processingMessageId);
-          } catch (deleteError) {
-            log.error(deleteError, 'Erro ao deletar mensagem de processando');
+            let keyboardParaProcessamento: any | undefined;
+            try {
+              keyboardParaProcessamento = createBetInlineKeyboard(novaAposta.id, processingMessageId, message.chat.id);
+            } catch (keyboardError) {
+              log.warn({ keyboardError, betId: novaAposta.id }, 'Erro ao criar keyboard ao reutilizar mensagem de processamento');
+              keyboardParaProcessamento = undefined;
+            }
+
+            await editMessageText(
+              message.chat.id,
+              processingMessageId,
+              fallbackSimpleMessage,
+              keyboardParaProcessamento
+            );
+            mensagemEnviadaComSucesso = true;
+            reaproveitouMensagemDeProcessamento = true;
+          } catch (editError) {
+            log.warn({ editError, processingMessageId, betId: novaAposta.id }, 'Falha ao editar mensagem de processamento com fallback');
+            try {
+              await editMessageText(message.chat.id, processingMessageId, fallbackSimpleMessage);
+              mensagemEnviadaComSucesso = true;
+              reaproveitouMensagemDeProcessamento = true;
+            } catch (secondEditError) {
+              log.error({ secondEditError, processingMessageId, betId: novaAposta.id }, 'Falha final ao atualizar mensagem de processamento');
+            }
+          }
+        }
+
+        if (processingMessageId && mensagemEnviadaComSucesso) {
+          if (reaproveitouMensagemDeProcessamento) {
+            log.info(
+              { processingMessageId },
+              'Mantendo mensagem de processamento como resposta final após reaproveitamento'
+            );
+          } else {
+            log.info({ processingMessageId }, 'Deletando mensagem de processando após envio bem-sucedido');
+            try {
+              await deleteMessage(message.chat.id, processingMessageId);
+            } catch (deleteError) {
+              log.error(deleteError, 'Erro ao deletar mensagem de processando');
+            }
           }
         } else if (processingMessageId) {
+          try {
+            await editMessageText(
+              message.chat.id,
+              processingMessageId,
+              '⚠️ Bilhete registrado, mas não consegui enviar o resumo completo. Verifique no painel para todos os detalhes.'
+            );
+          } catch (editarAvisoErro) {
+            log.warn(
+              { editarAvisoErro, processingMessageId },
+              'Falha ao atualizar mensagem de processamento com aviso de erro'
+            );
+          }
           log.warn(
             {
               processingMessageId,
