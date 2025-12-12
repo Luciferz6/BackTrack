@@ -822,6 +822,26 @@ const formatBetMessage = (bet, banca) => {
         }
         const statusEmoji = STATUS_EMOJIS[bet.status] || '⏳';
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
+        // Construir uma visão mais rica de mercado combinando o que veio salvo com o que
+        // pode ser inferido do texto da aposta (útil para props como recepções, pontos etc.)
+        const mercadoBase = formatMarketText(bet.mercado);
+        const mercadoDerivado = deriveMarketFromBetSelections(bet.aposta || '', bet.jogo || undefined);
+        let mercadoDisplay = mercadoBase;
+        if (mercadoDerivado) {
+            if (mercadoBase === 'N/D') {
+                mercadoDisplay = mercadoDerivado;
+            }
+            else {
+                const baseLower = mercadoBase.toLowerCase();
+                const derivLower = mercadoDerivado.toLowerCase();
+                const containsRelation = baseLower === derivLower ||
+                    baseLower.includes(derivLower) ||
+                    derivLower.includes(baseLower);
+                if (!containsRelation) {
+                    mercadoDisplay = `${mercadoBase} / ${mercadoDerivado}`;
+                }
+            }
+        }
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
         const marketLines = extractMarketSelections(bet.mercado);
         // Se houver aposta, priorize ela na linha de aposta
@@ -841,8 +861,31 @@ const formatBetMessage = (bet, banca) => {
         let apostaLine;
         if (apostaText.includes('\n')) {
             const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-            const primaryLine = (lines.shift() ?? apostaText.trim()) || 'N/D';
-            const remaining = lines.length > 0 ? `\n${lines.join('\n')}` : '';
+            // Remover linhas que são claramente descrições de mercado já exibidas em "🎯 Mercado"
+            const marketText = formatMarketText(bet.mercado).toLowerCase();
+            const marketParts = marketText
+                .split(/\n+/)
+                .flatMap((part) => part.split('/'))
+                .map((part) => part.trim())
+                .filter(Boolean);
+            const filteredLines = lines.filter((line, index) => {
+                if (index === 0) {
+                    return true;
+                }
+                const lower = line.toLowerCase();
+                if (!lower) {
+                    return false;
+                }
+                if (marketText && (marketText.includes(lower) || lower.includes(marketText))) {
+                    return false;
+                }
+                if (marketParts.some((part) => part && (lower === part || lower.includes(part) || part.includes(lower)))) {
+                    return false;
+                }
+                return true;
+            });
+            const primaryLine = (filteredLines.shift() ?? apostaText.trim()) || 'N/D';
+            const remaining = filteredLines.length > 0 ? `\n${filteredLines.join('\n')}` : '';
             apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
         }
         else {
@@ -858,7 +901,7 @@ const formatBetMessage = (bet, banca) => {
   🏆 Torneio: ${bet.torneio || 'N/D'}
   ⚔️ Evento: ${bet.jogo || 'N/D'}
   ${apostaLine}
-  🎯 Mercado: ${formatMarketText(bet.mercado)}
+  🎯 Mercado: ${mercadoDisplay}
   💰 Valor Apostado: ${formatCurrency(valorApostado)}
   🎲 Odd: ${odd}
   💵 Retorno Potencial: ${formatCurrency(retornoPotencial)}

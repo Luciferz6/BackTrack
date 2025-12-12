@@ -959,6 +959,30 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     const statusEmoji = STATUS_EMOJIS[bet.status] || '⏳';
     const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
 
+    // Construir uma visão mais rica de mercado combinando o que veio salvo com o que
+    // pode ser inferido do texto da aposta (útil para props como recepções, pontos etc.)
+    const mercadoBase = formatMarketText(bet.mercado);
+    const mercadoDerivado = deriveMarketFromBetSelections(bet.aposta || '', bet.jogo || undefined);
+
+    let mercadoDisplay = mercadoBase;
+    if (mercadoDerivado) {
+      if (mercadoBase === 'N/D') {
+        mercadoDisplay = mercadoDerivado;
+      } else {
+        const baseLower = mercadoBase.toLowerCase();
+        const derivLower = mercadoDerivado.toLowerCase();
+
+        const containsRelation =
+          baseLower === derivLower ||
+          baseLower.includes(derivLower) ||
+          derivLower.includes(baseLower);
+
+        if (!containsRelation) {
+          mercadoDisplay = `${mercadoBase} / ${mercadoDerivado}`;
+        }
+      }
+    }
+
     // Formatar a linha de aposta priorizando o mercado detalhado quando existir
     const marketLines = extractMarketSelections(bet.mercado);
 
@@ -1024,7 +1048,7 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
   🏆 Torneio: ${bet.torneio || 'N/D'}
   ⚔️ Evento: ${bet.jogo || 'N/D'}
   ${apostaLine}
-  🎯 Mercado: ${formatMarketText(bet.mercado)}
+  🎯 Mercado: ${mercadoDisplay}
   💰 Valor Apostado: ${formatCurrency(valorApostado)}
   🎲 Odd: ${odd}
   💵 Retorno Potencial: ${formatCurrency(retornoPotencial)}
