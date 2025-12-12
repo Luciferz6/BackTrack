@@ -977,8 +977,38 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     let apostaLine: string;
     if (apostaText.includes('\n')) {
       const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-      const primaryLine = (lines.shift() ?? apostaText.trim()) || 'N/D';
-      const remaining = lines.length > 0 ? `\n${lines.join('\n')}` : '';
+
+      // Remover linhas que são claramente descrições de mercado já exibidas em "🎯 Mercado"
+      const marketText = formatMarketText(bet.mercado).toLowerCase();
+      const marketParts = marketText
+        .split(/\n+/)
+        .flatMap((part) => part.split('/'))
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      const filteredLines = lines.filter((line, index) => {
+        if (index === 0) {
+          return true;
+        }
+
+        const lower = line.toLowerCase();
+        if (!lower) {
+          return false;
+        }
+
+        if (marketText && (marketText.includes(lower) || lower.includes(marketText))) {
+          return false;
+        }
+
+        if (marketParts.some((part) => part && (lower === part || lower.includes(part) || part.includes(lower)))) {
+          return false;
+        }
+
+        return true;
+      });
+
+      const primaryLine = (filteredLines.shift() ?? apostaText.trim()) || 'N/D';
+      const remaining = filteredLines.length > 0 ? `\n${filteredLines.join('\n')}` : '';
       apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
     } else {
       apostaLine = `🎰 Aposta: ${apostaText}`;
