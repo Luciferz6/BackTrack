@@ -70,7 +70,7 @@ type NormalizedTicketData = {
   odd: number;
   dataJogo: string;
   status: string;
-  aposta?: string;
+  aposta?: string | string[];
 };
 
 const normalizeDateValue = (raw?: string | null): string => {
@@ -106,7 +106,7 @@ const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): Normalized
   odd: typeof ticket.odd === 'number' ? ticket.odd : Number(ticket.odd) || 0,
   dataJogo: normalizeDateValue(ticket.dataJogo),
   status: ticket.status || 'Pendente',
-  aposta: ticket.aposta || ticket.apostaDetalhada || ''
+  aposta: (ticket.aposta as any) ?? ticket.apostaDetalhada ?? ''
 });
 
 const processTicketViaBilheteTracker = async (base64Image: string, mimeType: string, ocrText?: string) => {
@@ -349,7 +349,94 @@ const normalizeTextSegments = (value: unknown, separator = '\n'): string => {
   return '';
 };
 
-const deriveMarketFromBetSelections = (apostaText: string): string | null => {
+const EVENT_EXCLUSION_KEYWORDS = [
+  'assist',
+  'assistência',
+  'assistencia',
+  'rebote',
+  'rebotes',
+  'rebound',
+  'ponto',
+  'pontos',
+  'point',
+  'points',
+  'odd',
+  'stake',
+  'mais',
+  'menos',
+  'over',
+  'under',
+  'handicap',
+  'cartão',
+  'cartao',
+  'corner',
+  'escanteio',
+  'gol',
+  'gols',
+  'golos',
+  'jogador',
+  'player',
+  'ambas',
+  'btts',
+  'cashout',
+  'aposta',
+  'resultado',
+  'placar'
+];
+
+const EVENT_CONNECTORS = [
+  { regex: /\bvs\b/i, split: /\bvs\b/i },
+  { regex: /\bversus\b/i, split: /\bversus\b/i },
+  { regex: /@/, split: /@/ },
+  { regex: /\b x \b/i, split: /\b x \b/i },
+  { regex: /\s-\s/, split: /\s-\s/ }
+];
+
+const isLikelyEventPart = (part: string): boolean => {
+  const trimmed = part.trim();
+  if (!trimmed) {
+    return false;
+  }
+
+  if (!/[a-zA-ZÀ-ÿ]/.test(trimmed)) {
+    return false;
+  }
+
+  const lower = trimmed.toLowerCase();
+  if (EVENT_EXCLUSION_KEYWORDS.some((kw) => lower.includes(kw))) {
+    return false;
+  }
+
+  if (/\d+\s*\+/.test(trimmed)) {
+    return false;
+  }
+
+  return true;
+};
+
+const isLikelyEventName = (value: string): boolean => {
+  const text = value.trim().replace(/\s+/g, ' ');
+  if (!text) {
+    return false;
+  }
+
+  for (const connector of EVENT_CONNECTORS) {
+    if (connector.regex.test(text)) {
+      const parts = text
+        .split(connector.split)
+        .map((part) => part.trim())
+        .filter(Boolean);
+
+      if (parts.length >= 2 && parts.every(isLikelyEventPart)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+};
+
+const deriveMarketFromBetSelections = (apostaText: string, evento?: string): string | null => {
   if (!apostaText) {
     return null;
   }
@@ -363,6 +450,8 @@ const deriveMarketFromBetSelections = (apostaText: string): string | null => {
     return null;
   }
 
+  const eventoNormalizado = evento ? evento.trim().toLowerCase() : '';
+
   const collected = new Set<string>();
 
   for (const line of lines) {
@@ -371,6 +460,16 @@ const deriveMarketFromBetSelections = (apostaText: string): string | null => {
       .trim();
 
     if (!base) {
+      continue;
+    }
+
+     const baseLower = base.toLowerCase();
+
+    if (eventoNormalizado && baseLower === eventoNormalizado) {
+      continue;
+    }
+
+    if (isLikelyEventName(base)) {
       continue;
     }
 
@@ -419,6 +518,58 @@ const formatMarketText = (market?: string | null): string => {
     return market.trim();
   }
   return 'N/D';
+};
+
+type DeriveEventOptions = {
+  normalizedGame?: string;
+  apostaText?: string;
+  mercadoText?: string;
+  caption?: string | null;
+};
+
+const deriveEventName = ({ normalizedGame, apostaText, mercadoText, caption }: DeriveEventOptions): string | null => {
+  if (normalizedGame && isLikelyEventName(normalizedGame)) {
+    return normalizedGame.trim();
+  }
+
+  const candidates: string[] = [];
+
+  const appendCandidatesFromText = (text?: string | null) => {
+    if (!text) {
+      return;
+    }
+
+    text
+      .split(/\n+/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .forEach((line) => {
+        candidates.push(line);
+      });
+  };
+
+  appendCandidatesFromText(normalizedGame);
+  appendCandidatesFromText(caption || undefined);
+  appendCandidatesFromText(apostaText);
+  appendCandidatesFromText(mercadoText);
+
+  const seen = new Set<string>();
+  for (const candidate of candidates) {
+    const normalized = candidate.trim();
+    if (!normalized) {
+      continue;
+    }
+    const lower = normalized.toLowerCase();
+    if (seen.has(lower)) {
+      continue;
+    }
+    seen.add(lower);
+    if (isLikelyEventName(normalized)) {
+      return normalized;
+    }
+  }
+
+  return normalizedGame?.trim() || null;
 };
 
 const sendTelegramMessage = async (chatId: number, text: string, replyMarkup?: any, replyToMessageId?: number, useSupportBot = false) => {
@@ -823,9 +974,15 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
       apostaText = bet.jogo || 'N/D';
     }
 
-    const apostaLine = apostaText.includes('\n')
-      ? `🎰 Aposta:\n${apostaText}`
-      : `🎰 Aposta: ${apostaText}`;
+    let apostaLine: string;
+    if (apostaText.includes('\n')) {
+      const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+      const primaryLine = lines.shift() ?? apostaText.trim() || 'N/D';
+      const remaining = lines.length > 0 ? `\n${lines.join('\n')}` : '';
+      apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
+    } else {
+      apostaLine = `🎰 Aposta: ${apostaText}`;
+    }
 
     return `✅ Bilhete processado com sucesso
 
@@ -1833,14 +1990,26 @@ router.post('/webhook', async (req, res) => {
         const tipster = tipsterFromCaption || normalizedData.tipster || '';
 
         const esporte = normalizedData.esporte || 'Outros';
-        const jogo = normalizedData.jogo || message.caption || 'Aposta importada pelo Telegram';
-        const dataJogo = normalizedData.dataJogo ? new Date(normalizedData.dataJogo) : new Date();
         const mercadoNormalizado = normalizeTextSegments(normalizedData.mercado);
         const apostaNormalizada = normalizeTextSegments(normalizedData.aposta);
 
+        const jogoBase = normalizedData.jogo || message.caption || 'Aposta importada pelo Telegram';
+
+        const jogoDerivado = deriveEventName({
+          normalizedGame: normalizedData.jogo,
+          apostaText: apostaNormalizada,
+          mercadoText: mercadoNormalizado,
+          caption: message.caption
+        });
+
+        const jogo = !normalizedData.jogo || !isLikelyEventName(normalizedData.jogo)
+          ? (jogoDerivado || jogoBase)
+          : normalizedData.jogo;
+        const dataJogo = normalizedData.dataJogo ? new Date(normalizedData.dataJogo) : new Date();
+
         let mercadoParaSalvar = formatMarketText(mercadoNormalizado);
         if (mercadoParaSalvar === 'N/D') {
-          const mercadoDerivado = deriveMarketFromBetSelections(apostaNormalizada);
+          const mercadoDerivado = deriveMarketFromBetSelections(apostaNormalizada, jogo);
           if (mercadoDerivado) {
             mercadoParaSalvar = mercadoDerivado;
           }
