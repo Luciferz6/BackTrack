@@ -349,6 +349,67 @@ const normalizeTextSegments = (value: unknown, separator = '\n'): string => {
   return '';
 };
 
+const deriveMarketFromBetSelections = (apostaText: string): string | null => {
+  if (!apostaText) {
+    return null;
+  }
+
+  const lines = apostaText
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length === 0) {
+    return null;
+  }
+
+  const collected = new Set<string>();
+
+  for (const line of lines) {
+    let base = line
+      .replace(/^[-•]+\s*/, '')
+      .trim();
+
+    if (!base) {
+      continue;
+    }
+
+    if (base.includes('→')) {
+      base = base.split('→')[0]?.trim() || base;
+    } else if (base.includes(':')) {
+      base = base.split(':')[0]?.trim() || base;
+    } else if (base.includes('-')) {
+      const parts = base.split('-');
+      const tail = parts[parts.length - 1]?.trim() ?? '';
+      const cleanedTail = tail.replace(/[0-9+.,%]/g, '').trim();
+      if (cleanedTail) {
+        base = cleanedTail;
+      }
+    }
+
+    base = base.replace(/[0-9+.,%]/g, '').trim();
+
+    if (!base) {
+      const fallbackTokens = line
+        .replace(/[0-9+.,%]/g, ' ')
+        .split(/\s+/)
+        .map((token) => token.trim())
+        .filter(Boolean);
+      base = fallbackTokens.pop() || '';
+    }
+
+    if (base) {
+      collected.add(base);
+    }
+  }
+
+  if (collected.size === 0) {
+    return null;
+  }
+
+  return Array.from(collected).join(' / ');
+};
+
 const formatMarketText = (market?: string | null): string => {
   const selections = extractMarketSelections(market);
   if (selections.length > 0) {
@@ -1777,6 +1838,14 @@ router.post('/webhook', async (req, res) => {
         const mercadoNormalizado = normalizeTextSegments(normalizedData.mercado);
         const apostaNormalizada = normalizeTextSegments(normalizedData.aposta);
 
+        let mercadoParaSalvar = formatMarketText(mercadoNormalizado);
+        if (mercadoParaSalvar === 'N/D') {
+          const mercadoDerivado = deriveMarketFromBetSelections(apostaNormalizada);
+          if (mercadoDerivado) {
+            mercadoParaSalvar = mercadoDerivado;
+          }
+        }
+
         const novaAposta = await prisma.bet.create({
           data: {
             bancaId: bancaPadrao.id,
@@ -1784,7 +1853,7 @@ router.post('/webhook', async (req, res) => {
             jogo,
             torneio: normalizedData.torneio || null,
             pais: normalizedData.pais || null,
-            mercado: formatMarketText(mercadoNormalizado),
+            mercado: mercadoParaSalvar,
             tipoAposta: normalizedData.tipoAposta || 'Simples',
             valorApostado: normalizedData.valorApostado || 0,
             odd: normalizedData.odd || 1,
