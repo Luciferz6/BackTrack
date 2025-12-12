@@ -842,6 +842,39 @@ const formatBetMessage = (bet, banca) => {
                 }
             }
         }
+        // Limpar o texto final de mercado para remover ruídos como
+        // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes".
+        const rawMarketSegments = mercadoDisplay
+            .split(/\n+/)
+            .flatMap((part) => part.split('/'))
+            .map((part) => part.trim())
+            .filter(Boolean);
+        const normalizedMarketSegments = [];
+        const seenMarketKeys = new Set();
+        for (const segment of rawMarketSegments) {
+            // Remover parênteses com descrições genéricas (ex.: "(Mais de/Menos de)")
+            const withoutParens = segment.replace(/\([^)]*\)/g, '').trim();
+            if (!withoutParens) {
+                continue;
+            }
+            const lower = withoutParens.toLowerCase();
+            // Gerar uma chave de deduplicação que ignore palavras como "mais",
+            // "menos" e preposições simples, mas preserve contexto como "1º quarto".
+            const key = lower
+                .replace(/\b(mais|menos)\b/gi, '')
+                .replace(/\b(de|do|da|das|dos)\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (!key) {
+                continue;
+            }
+            if (seenMarketKeys.has(key)) {
+                continue;
+            }
+            seenMarketKeys.add(key);
+            normalizedMarketSegments.push(withoutParens);
+        }
+        const mercadoDisplayClean = normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
         const marketLines = extractMarketSelections(bet.mercado);
         // Se houver aposta, priorize ela na linha de aposta
@@ -930,7 +963,7 @@ const formatBetMessage = (bet, banca) => {
   🏆 Torneio: ${bet.torneio || 'N/D'}
   ⚔️ Evento: ${bet.jogo || 'N/D'}
   ${apostaLine}
-  🎯 Mercado: ${mercadoDisplay}
+  🎯 Mercado: ${mercadoDisplayClean}
   💰 Valor Apostado: ${formatCurrency(valorApostado)}
   🎲 Odd: ${odd}
   💵 Retorno Potencial: ${formatCurrency(retornoPotencial)}
