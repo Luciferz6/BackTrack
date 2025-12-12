@@ -1002,25 +1002,30 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     if (apostaText.includes('\n')) {
       const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
 
-      // Remover linhas que são claramente descrições de mercado já exibidas em "🎯 Mercado"
-      const marketText = formatMarketText(bet.mercado).toLowerCase();
+      const jogoLower = (bet.jogo || '').toLowerCase();
+
+      // Focar em remover apenas descrições puras de mercado (ex.: "Recepções (Mais de/Menos de)")
+      // usando o mercado derivado do texto da aposta, para não descartar linhas com o jogador.
+      const marketText = (mercadoDerivado || '').toLowerCase();
       const marketParts = marketText
         .split(/\n+/)
         .flatMap((part) => part.split('/'))
         .map((part) => part.trim())
         .filter(Boolean);
 
-      const filteredLines = lines.filter((line, index) => {
-        if (index === 0) {
-          return true;
-        }
-
+      const candidateLines = lines.filter((line) => {
         const lower = line.toLowerCase();
         if (!lower) {
           return false;
         }
 
-        if (marketText && (marketText.includes(lower) || lower.includes(marketText))) {
+        // Ignorar linhas que são claramente o evento/jogo
+        if (jogoLower && (lower === jogoLower || isLikelyEventName(line))) {
+          return false;
+        }
+
+        // Ignorar linhas que sejam apenas rótulos de mercado já exibidos em "🎯 Mercado"
+        if (marketText && (marketText === lower || marketText.includes(lower) || lower.includes(marketText))) {
           return false;
         }
 
@@ -1031,11 +1036,39 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
         return true;
       });
 
-      const primaryLine = (filteredLines.shift() ?? apostaText.trim()) || 'N/D';
-      const remaining = filteredLines.length > 0 ? `\n${filteredLines.join('\n')}` : '';
+      const primaryLine = (candidateLines[0] || lines[0] || apostaText.trim() || 'N/D');
+      const remainingLines = candidateLines.slice(1);
+      const remaining = remainingLines.length > 0 ? `\n${remainingLines.join('\n')}` : '';
       apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
     } else {
-      apostaLine = `🎰 Aposta: ${apostaText}`;
+      let singleLine = apostaText.trim();
+
+      // Em linhas únicas como "Recepções (Mais de/Menos de) - Devonta Smith - Under 4.5",
+      // remover o prefixo que é só o rótulo de mercado para deixar o foco na seleção.
+      const marketSource = (mercadoDerivado || mercadoBase || '').toLowerCase();
+      if (marketSource) {
+        const marketParts = marketSource
+          .split(/\n+/)
+          .flatMap((part) => part.split('/'))
+          .map((part) => part.trim())
+          .filter(Boolean);
+
+        for (const part of marketParts) {
+          const partLower = part.toLowerCase();
+          if (!partLower) continue;
+
+          if (singleLine.toLowerCase().startsWith(partLower)) {
+            let trimmed = singleLine.substring(part.length);
+            trimmed = trimmed.replace(/^[\s\-–:|]+/, '').trim();
+            if (trimmed) {
+              singleLine = trimmed;
+            }
+            break;
+          }
+        }
+      }
+
+      apostaLine = `🎰 Aposta: ${singleLine}`;
     }
 
     return `✅ Bilhete processado com sucesso
