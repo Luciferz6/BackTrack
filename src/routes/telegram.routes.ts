@@ -326,6 +326,29 @@ const extractMarketSelections = (market?: string | null): string[] => {
   return deduped;
 };
 
+const normalizeTextSegments = (value: unknown, separator = '\n'): string => {
+  if (value === null || value === undefined) {
+    return '';
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((segment) => (typeof segment === 'string' ? segment.trim() : ''))
+      .filter(Boolean)
+      .join(separator);
+  }
+
+  if (typeof value === 'string') {
+    return value.trim();
+  }
+
+  if (typeof value === 'number' || typeof value === 'boolean') {
+    return String(value);
+  }
+
+  return '';
+};
+
 const formatMarketText = (market?: string | null): string => {
   const selections = extractMarketSelections(market);
   if (selections.length > 0) {
@@ -1751,6 +1774,8 @@ router.post('/webhook', async (req, res) => {
         const esporte = normalizedData.esporte || 'Outros';
         const jogo = normalizedData.jogo || message.caption || 'Aposta importada pelo Telegram';
         const dataJogo = normalizedData.dataJogo ? new Date(normalizedData.dataJogo) : new Date();
+        const mercadoNormalizado = normalizeTextSegments(normalizedData.mercado);
+        const apostaNormalizada = normalizeTextSegments(normalizedData.aposta);
 
         const novaAposta = await prisma.bet.create({
           data: {
@@ -1759,7 +1784,7 @@ router.post('/webhook', async (req, res) => {
             jogo,
             torneio: normalizedData.torneio || null,
             pais: normalizedData.pais || null,
-            mercado: formatMarketText(normalizedData.mercado),
+            mercado: formatMarketText(mercadoNormalizado),
             tipoAposta: normalizedData.tipoAposta || 'Simples',
             valorApostado: normalizedData.valorApostado || 0,
             odd: normalizedData.odd || 1,
@@ -1768,7 +1793,7 @@ router.post('/webhook', async (req, res) => {
             tipster: tipster || null,
             status: normalizedData.status || 'Pendente',
             casaDeAposta,
-            aposta: normalizedData.aposta || '',
+            aposta: apostaNormalizada,
             retornoObtido:
               normalizedData.status === 'Ganha'
                 ? (normalizedData.valorApostado || 0) * (normalizedData.odd || 1)
