@@ -5,6 +5,7 @@ import { prisma } from '../lib/prisma.js';
 import { emitBetEvent } from '../utils/betEvents.js';
 import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
+import { normalizarEsporteParaOpcao } from '../utils/esportes.js';
 const router = express.Router();
 config();
 const getTelegramBotToken = () => {
@@ -24,10 +25,28 @@ const ensureConfig = () => {
 const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
 const BILHETE_TRACKER_SCAN_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/scan-ticket`;
 const BILHETE_TRACKER_TIMEOUT_MS = parseInt(process.env.BILHETE_TRACKER_TIMEOUT_MS || '60000', 10);
+const normalizeDateValue = (raw) => {
+    if (!raw)
+        return '';
+    const value = raw.trim();
+    if (!value)
+        return '';
+    // Retorna diretamente se já estiver em um formato ISO parseável
+    const isoMatch = value.match(/^\d{4}-\d{2}-\d{2}/);
+    if (isoMatch) {
+        return value;
+    }
+    const brMatch = value.match(/^(\d{2})\/(\d{2})\/(\d{4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?$/);
+    if (brMatch) {
+        const [, day, month, year, hour = '00', minute = '00', second = '00'] = brMatch;
+        return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+    }
+    return '';
+};
 const normalizeBilheteTrackerTicket = (ticket) => ({
     casaDeAposta: ticket.casaDeAposta || '',
     tipster: ticket.tipster || '',
-    esporte: ticket.esporte || '',
+    esporte: normalizarEsporteParaOpcao(ticket.esporte || '') || (ticket.esporte || ''),
     jogo: ticket.jogo || '',
     torneio: ticket.torneio || '',
     pais: ticket.pais || 'Mundo',
@@ -35,8 +54,9 @@ const normalizeBilheteTrackerTicket = (ticket) => ({
     tipoAposta: ticket.tipoAposta || 'Simples',
     valorApostado: typeof ticket.valorApostado === 'number' ? ticket.valorApostado : Number(ticket.valorApostado) || 0,
     odd: typeof ticket.odd === 'number' ? ticket.odd : Number(ticket.odd) || 0,
-    dataJogo: ticket.dataJogo || '',
-    status: ticket.status || 'Pendente'
+    dataJogo: normalizeDateValue(ticket.dataJogo),
+    status: ticket.status || 'Pendente',
+    aposta: ticket.aposta ?? ticket.apostaDetalhada ?? ''
 });
 const processTicketViaBilheteTracker = async (base64Image, mimeType, ocrText) => {
     const controller = new AbortController();
@@ -239,6 +259,159 @@ const extractMarketSelections = (market) => {
     }
     return deduped;
 };
+const normalizeTextSegments = (value, separator = '\n') => {
+    if (value === null || value === undefined) {
+        return '';
+    }
+    if (Array.isArray(value)) {
+        return value
+            .map((segment) => (typeof segment === 'string' ? segment.trim() : ''))
+            .filter(Boolean)
+            .join(separator);
+    }
+    if (typeof value === 'string') {
+        return value.trim();
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        return String(value);
+    }
+    return '';
+};
+const EVENT_EXCLUSION_KEYWORDS = [
+    'assist',
+    'assistência',
+    'assistencia',
+    'rebote',
+    'rebotes',
+    'rebound',
+    'ponto',
+    'pontos',
+    'point',
+    'points',
+    'odd',
+    'stake',
+    'mais',
+    'menos',
+    'over',
+    'under',
+    'handicap',
+    'cartão',
+    'cartao',
+    'corner',
+    'escanteio',
+    'gol',
+    'gols',
+    'golos',
+    'jogador',
+    'player',
+    'ambas',
+    'btts',
+    'cashout',
+    'aposta',
+    'resultado',
+    'placar'
+];
+const EVENT_CONNECTORS = [
+    { regex: /\bvs\b/i, split: /\bvs\b/i },
+    { regex: /\bversus\b/i, split: /\bversus\b/i },
+    { regex: /@/, split: /@/ },
+    { regex: /\b x \b/i, split: /\b x \b/i },
+    { regex: /\s-\s/, split: /\s-\s/ }
+];
+const isLikelyEventPart = (part) => {
+    const trimmed = part.trim();
+    if (!trimmed) {
+        return false;
+    }
+    if (!/[a-zA-ZÀ-ÿ]/.test(trimmed)) {
+        return false;
+    }
+    const lower = trimmed.toLowerCase();
+    if (EVENT_EXCLUSION_KEYWORDS.some((kw) => lower.includes(kw))) {
+        return false;
+    }
+    if (/\d+\s*\+/.test(trimmed)) {
+        return false;
+    }
+    return true;
+};
+const isLikelyEventName = (value) => {
+    const text = value.trim().replace(/\s+/g, ' ');
+    if (!text) {
+        return false;
+    }
+    for (const connector of EVENT_CONNECTORS) {
+        if (connector.regex.test(text)) {
+            const parts = text
+                .split(connector.split)
+                .map((part) => part.trim())
+                .filter(Boolean);
+            if (parts.length >= 2 && parts.every(isLikelyEventPart)) {
+                return true;
+            }
+        }
+    }
+    return false;
+};
+const deriveMarketFromBetSelections = (apostaText, evento) => {
+    if (!apostaText) {
+        return null;
+    }
+    const lines = apostaText
+        .split(/\n+/)
+        .map((line) => line.trim())
+        .filter(Boolean);
+    if (lines.length === 0) {
+        return null;
+    }
+    const eventoNormalizado = evento ? evento.trim().toLowerCase() : '';
+    const collected = new Set();
+    for (const line of lines) {
+        let base = line
+            .replace(/^[-•]+\s*/, '')
+            .trim();
+        if (!base) {
+            continue;
+        }
+        const baseLower = base.toLowerCase();
+        if (eventoNormalizado && baseLower === eventoNormalizado) {
+            continue;
+        }
+        if (isLikelyEventName(base)) {
+            continue;
+        }
+        if (base.includes('→')) {
+            base = base.split('→')[0]?.trim() || base;
+        }
+        else if (base.includes(':')) {
+            base = base.split(':')[0]?.trim() || base;
+        }
+        else if (base.includes('-')) {
+            const parts = base.split('-');
+            const tail = parts[parts.length - 1]?.trim() ?? '';
+            const cleanedTail = tail.replace(/[0-9+.,%]/g, '').trim();
+            if (cleanedTail) {
+                base = cleanedTail;
+            }
+        }
+        base = base.replace(/[0-9+.,%]/g, '').trim();
+        if (!base) {
+            const fallbackTokens = line
+                .replace(/[0-9+.,%]/g, ' ')
+                .split(/\s+/)
+                .map((token) => token.trim())
+                .filter(Boolean);
+            base = fallbackTokens.pop() || '';
+        }
+        if (base) {
+            collected.add(base);
+        }
+    }
+    if (collected.size === 0) {
+        return null;
+    }
+    return Array.from(collected).join(' / ');
+};
 const formatMarketText = (market) => {
     const selections = extractMarketSelections(market);
     if (selections.length > 0) {
@@ -248,6 +421,44 @@ const formatMarketText = (market) => {
         return market.trim();
     }
     return 'N/D';
+};
+const deriveEventName = ({ normalizedGame, apostaText, mercadoText, caption }) => {
+    if (normalizedGame && isLikelyEventName(normalizedGame)) {
+        return normalizedGame.trim();
+    }
+    const candidates = [];
+    const appendCandidatesFromText = (text) => {
+        if (!text) {
+            return;
+        }
+        text
+            .split(/\n+/)
+            .map((line) => line.trim())
+            .filter(Boolean)
+            .forEach((line) => {
+            candidates.push(line);
+        });
+    };
+    appendCandidatesFromText(normalizedGame);
+    appendCandidatesFromText(caption || undefined);
+    appendCandidatesFromText(apostaText);
+    appendCandidatesFromText(mercadoText);
+    const seen = new Set();
+    for (const candidate of candidates) {
+        const normalized = candidate.trim();
+        if (!normalized) {
+            continue;
+        }
+        const lower = normalized.toLowerCase();
+        if (seen.has(lower)) {
+            continue;
+        }
+        seen.add(lower);
+        if (isLikelyEventName(normalized)) {
+            return normalized;
+        }
+    }
+    return normalizedGame?.trim() || null;
 };
 const sendTelegramMessage = async (chatId, text, replyMarkup, replyToMessageId, useSupportBot = false) => {
     try {
@@ -526,6 +737,7 @@ const STATUS_EMOJIS = {
     Void: '⚪️'
 };
 const formatBetMessage = (bet, banca) => {
+    let esporteFormatado = normalizarEsporteParaOpcao(bet.esporte || '') || bet.esporte || '';
     try {
         const formatCurrency = (value) => {
             if (!value || isNaN(value))
@@ -612,8 +824,12 @@ const formatBetMessage = (bet, banca) => {
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
         const marketLines = extractMarketSelections(bet.mercado);
+        // Se houver aposta, priorize ela na linha de aposta
         let apostaText;
-        if (marketLines.length > 1) {
+        if (bet.aposta && bet.aposta.trim() !== '') {
+            apostaText = bet.aposta.trim();
+        }
+        else if (marketLines.length > 1) {
             apostaText = marketLines.map((line) => `• ${line}`).join('\n');
         }
         else if (marketLines.length === 1) {
@@ -622,32 +838,70 @@ const formatBetMessage = (bet, banca) => {
         else {
             apostaText = bet.jogo || 'N/D';
         }
-        const apostaLine = apostaText.includes('\n')
-            ? `🎯 Aposta:\n${apostaText}`
-            : `🎯 Aposta: ${apostaText}`;
+        let apostaLine;
+        if (apostaText.includes('\n')) {
+            const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+            const primaryLine = (lines.shift() ?? apostaText.trim()) || 'N/D';
+            const remaining = lines.length > 0 ? `\n${lines.join('\n')}` : '';
+            apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
+        }
+        else {
+            apostaLine = `🎰 Aposta: ${apostaText}`;
+        }
         return `✅ Bilhete processado com sucesso
 
-🆔 ID: ${bet.id}
-💰 Banca: ${banca?.nome || 'N/D'}
-${statusText}
-💎 ${lucroPrejuizoText}
-🏀 Esporte: ${bet.esporte || 'N/D'}
-🏆 Torneio: ${bet.torneio || 'N/D'}
-⚔️ Evento: ${bet.jogo || 'N/D'}
-${apostaLine}
-💵 Valor Apostado: ${formatCurrency(valorApostado)}
-📊 Odd: ${odd}
-💚 Retorno Potencial: ${formatCurrency(retornoPotencial)}
-📄 Tipo: ${bet.tipoAposta || 'Simples'}
-📅 Data: ${formatDate(bet.dataJogo)}
-🎁 Bônus: ${(bet.bonus || 0) > 0 ? formatCurrency(bet.bonus) : 'Não'}
-🏠 Casa: ${bet.casaDeAposta || 'N/D'}
-👤 Tipster: ${bet.tipster || 'N/D'}`;
+  🆔 ID: ${bet.id}
+  💰 Banca: ${banca?.nome || 'N/D'}
+  ${statusText}
+  💎 ${lucroPrejuizoText}
+  🏀 Esporte: ${esporteFormatado || 'N/D'}
+  🏆 Torneio: ${bet.torneio || 'N/D'}
+  ⚔️ Evento: ${bet.jogo || 'N/D'}
+  ${apostaLine}
+  🎯 Mercado: ${formatMarketText(bet.mercado)}
+  💰 Valor Apostado: ${formatCurrency(valorApostado)}
+  🎲 Odd: ${odd}
+  💵 Retorno Potencial: ${formatCurrency(retornoPotencial)}
+  📄 Tipo: ${bet.tipoAposta || 'Simples'}
+  📅 Data: ${formatDate(bet.dataJogo)}
+  🎁 Bônus: ${(bet.bonus || 0) > 0 ? formatCurrency(bet.bonus) : 'Não'}
+  🏠 Casa: ${bet.casaDeAposta || 'N/D'}
+  👤 Tipster: ${bet.tipster || 'N/D'}`;
     }
     catch (error) {
         log.error(error, 'Erro ao formatar mensagem da aposta');
-        return `✅ Bilhete processado com sucesso!\n\n🆔 ID: ${bet.id}\n💰 Banca: ${banca?.nome || 'N/D'}\n🏀 Esporte: ${bet.esporte || 'N/D'}`;
+        return `✅ Bilhete processado com sucesso!\n\n🆔 ID: ${bet.id}\n💰 Banca: ${banca?.nome || 'N/D'}\n🏀 Esporte: ${esporteFormatado || 'N/D'}`;
     }
+};
+const getFrontendBaseUrl = () => {
+    if (!process.env.FRONTEND_URL) {
+        return null;
+    }
+    let baseUrl = process.env.FRONTEND_URL.trim();
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+        baseUrl = `https://${baseUrl}`;
+    }
+    return baseUrl.replace(/\/$/, '');
+};
+const buildEditWebAppUrl = (betId, messageId, chatId) => {
+    const baseUrl = getFrontendBaseUrl();
+    if (!baseUrl) {
+        return null;
+    }
+    const params = new URLSearchParams({ betId });
+    if (typeof messageId === 'number') {
+        params.append('messageId', messageId.toString());
+    }
+    if (typeof chatId === 'number') {
+        params.append('chatId', chatId.toString());
+    }
+    return `${baseUrl}/telegram/edit?${params.toString()}`;
+};
+const keyboardHasWebAppButton = (keyboard) => {
+    if (!keyboard?.inline_keyboard) {
+        return false;
+    }
+    return keyboard.inline_keyboard.some((row) => row.some((button) => Boolean(button?.web_app)));
 };
 const createBetInlineKeyboard = (betId, messageId, chatId) => {
     const frontendUrl = process.env.FRONTEND_URL;
@@ -677,31 +931,19 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
             maxCallbackSize
         }, 'Callback data excede limite do Telegram!');
     }
-    // Criar URLs para Web Apps (com https:// se necessário)
-    let editWebAppUrl = null;
-    if (frontendUrl) {
-        // Garantir que a URL tenha https://
-        let baseUrl = frontendUrl.trim();
-        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
-            baseUrl = `https://${baseUrl}`;
-        }
-        // Remover barra final se houver
-        baseUrl = baseUrl.replace(/\/$/, '');
-        // Incluir messageId e chatId na URL se disponíveis
-        if (messageId && chatId) {
-            editWebAppUrl = `${baseUrl}/telegram/edit?betId=${betId}&messageId=${messageId}&chatId=${chatId}`;
-        }
-        else {
-            editWebAppUrl = `${baseUrl}/telegram/edit?betId=${betId}`;
-        }
-        console.log('✅ URLs do Web App criadas:');
-        console.log('  Editar:', editWebAppUrl);
-    }
-    // Usar Web Apps se disponível, senão usar callbacks
-    let keyboard;
+    const editWebAppUrl = messageId && chatId ? buildEditWebAppUrl(betId, messageId, chatId) : null;
     if (editWebAppUrl) {
-        // Usar Web Apps para abrir modais automaticamente
-        keyboard = {
+        console.log('✅ URL do WebApp para edição:', editWebAppUrl);
+    }
+    else if (!frontendUrl) {
+        console.warn('⚠️ FRONTEND_URL não configurado ou inválido, usando callbacks');
+        console.warn('   Configure FRONTEND_URL com a URL completa (ex: https://seu-frontend.vercel.app)');
+    }
+    else {
+        console.log('ℹ️ FRONTEND_URL definido, mas faltam messageId/chatId. Usando callbacks temporariamente.');
+    }
+    const keyboard = editWebAppUrl
+        ? {
             inline_keyboard: [
                 [
                     { text: '✏️ Editar', web_app: { url: editWebAppUrl } },
@@ -711,12 +953,8 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
                     { text: '📚 Alterar Status', callback_data: statusCallback }
                 ]
             ]
-        };
-        console.log('✅ Usando Web Apps para abrir modais automaticamente');
-    }
-    else {
-        // Fallback: usar callbacks se não tiver frontend URL configurado
-        keyboard = {
+        }
+        : {
             inline_keyboard: [
                 [
                     { text: '✏️ Editar', callback_data: editarCallback },
@@ -727,9 +965,6 @@ const createBetInlineKeyboard = (betId, messageId, chatId) => {
                 ]
             ]
         };
-        console.warn('⚠️ FRONTEND_URL não configurado ou inválido, usando callbacks');
-        console.warn('   Configure FRONTEND_URL com a URL completa (ex: https://seu-frontend.vercel.app)');
-    }
     console.log('Keyboard criado:', JSON.stringify(keyboard, null, 2));
     console.log('Número de linhas:', keyboard.inline_keyboard.length);
     console.log('Total de botões:', keyboard.inline_keyboard.reduce((acc, row) => acc + row.length, 0));
@@ -992,17 +1227,36 @@ router.post('/webhook', async (req, res) => {
                             }
                             console.log('✓ Permissão confirmada');
                             // Abrir WebApp de edição com messageId e chatId
-                            const frontendUrl = process.env.FRONTEND_URL;
                             const messageId = callbackQuery.message?.message_id;
                             const chatId = callbackQuery.message?.chat?.id;
-                            if (frontendUrl && messageId && chatId) {
-                                const editUrl = `${frontendUrl}/telegram/edit?betId=${betId}&messageId=${messageId}&chatId=${chatId}`;
-                                await answerCallbackQuery(callbackQuery.id, '', false, editUrl);
-                                log.info({ betId, messageId, chatId }, 'Abrindo WebApp de edição com messageId e chatId');
+                            if (messageId && chatId) {
+                                try {
+                                    const upgradedKeyboard = createBetInlineKeyboard(betId, messageId, chatId);
+                                    if (keyboardHasWebAppButton(upgradedKeyboard)) {
+                                        await editMessageReplyMarkup(chatId, messageId, upgradedKeyboard);
+                                        await answerCallbackQuery(callbackQuery.id, 'Botão atualizado! Toque em ✏️ Editar novamente para abrir o editor.');
+                                        log.info({ betId, messageId, chatId }, 'Inline keyboard atualizado para WebApp via callback');
+                                        return;
+                                    }
+                                }
+                                catch (error) {
+                                    log.warn({ error, betId, messageId, chatId }, 'Falha ao atualizar inline keyboard para WebApp');
+                                }
+                            }
+                            const fallbackUrl = buildEditWebAppUrl(betId);
+                            if (fallbackUrl && chatId) {
+                                await sendTelegramMessage(chatId, 'Use o botão abaixo para abrir o editor.', {
+                                    inline_keyboard: [
+                                        [
+                                            { text: '✏️ Abrir editor', web_app: { url: fallbackUrl } }
+                                        ]
+                                    ]
+                                });
+                                await answerCallbackQuery(callbackQuery.id, 'Enviei um botão com o editor. Caso não apareça, verifique se o FRONTEND_URL está correto.', true);
+                                log.warn({ betId, chatId }, 'Fallback enviado para abrir editor do Telegram');
                                 return;
                             }
-                            // Fallback: Se não tiver frontendUrl ou messageId/chatId, informar o usuário
-                            await answerCallbackQuery(callbackQuery.id, 'Use o botão "Editar" que abre o modal automaticamente. Se não aparecer, verifique a configuração do FRONTEND_URL.', true);
+                            await answerCallbackQuery(callbackQuery.id, 'Não foi possível abrir o editor agora. Verifique a configuração do FRONTEND_URL.', true);
                             log.warn({ betId }, 'Callback de edição recebido, mas não foi possível abrir Web App');
                             return;
                         }
@@ -1399,342 +1653,309 @@ router.post('/webhook', async (req, res) => {
         if (!fileId) {
             return res.json({ ok: true });
         }
-        // Enviar mensagem de "processando"
-        const processingMessage = await sendTelegramMessage(message.chat.id, '⏳ Processando bilhete...', undefined, message.message_id);
-        let processingMessageId = null;
-        if (processingMessage && processingMessage.result) {
-            processingMessageId = processingMessage.result.message_id;
-        }
-        const { base64, filePath } = await downloadTelegramFile(fileId);
-        if (!mimeType && filePath) {
-            if (filePath.endsWith('.png'))
-                mimeType = 'image/png';
-            else if (filePath.endsWith('.webp'))
-                mimeType = 'image/webp';
-        }
-        // Extrair casa de aposta e tipster do caption se estiver em formato simples (duas linhas)
-        let casaDeApostaFromCaption = '';
-        let tipsterFromCaption = '';
-        if (message.caption) {
-            const lines = message.caption.trim().split('\n').map((line) => line.trim()).filter((line) => line);
-            if (lines.length >= 2) {
-                // Se tiver 2 ou mais linhas, primeira é casa de aposta, segunda é tipster
-                casaDeApostaFromCaption = lines[0];
-                tipsterFromCaption = lines[1];
-            }
-            else if (lines.length === 1) {
-                // Se tiver apenas uma linha, é a casa de aposta
-                casaDeApostaFromCaption = lines[0];
-            }
-        }
-        let normalizedData;
-        try {
-            // Não enviar caption como ocrText para permitir que o serviço execute o OCR completo
-            normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
-        }
-        catch (serviceError) {
-            log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo');
-            if (processingMessageId) {
+        const processTicketInBackground = async () => {
+            try {
+                const processingMessage = await sendTelegramMessage(message.chat.id, '⏳ Processando bilhete...', undefined, message.message_id);
+                let processingMessageId = null;
+                if (processingMessage && processingMessage.result) {
+                    processingMessageId = processingMessage.result.message_id;
+                }
+                const { base64, filePath } = await downloadTelegramFile(fileId);
+                if (!mimeType && filePath) {
+                    if (filePath.endsWith('.png'))
+                        mimeType = 'image/png';
+                    else if (filePath.endsWith('.webp'))
+                        mimeType = 'image/webp';
+                }
+                let casaDeApostaFromCaption = '';
+                let tipsterFromCaption = '';
+                if (message.caption) {
+                    const lines = message.caption
+                        .trim()
+                        .split('\n')
+                        .map((line) => line.trim())
+                        .filter((line) => line);
+                    if (lines.length >= 2) {
+                        casaDeApostaFromCaption = lines[0];
+                        tipsterFromCaption = lines[1];
+                    }
+                    else if (lines.length === 1) {
+                        casaDeApostaFromCaption = lines[0];
+                    }
+                }
+                let normalizedData;
                 try {
-                    await deleteMessage(message.chat.id, processingMessageId);
+                    normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
                 }
-                catch (deleteProcessingError) {
-                    log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
+                catch (serviceError) {
+                    log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo');
+                    if (processingMessageId) {
+                        try {
+                            await deleteMessage(message.chat.id, processingMessageId);
+                        }
+                        catch (deleteProcessingError) {
+                            log.error({ deleteProcessingError }, 'Erro ao remover mensagem de processamento após falha no OCR');
+                        }
+                    }
+                    await sendTelegramMessage(message.chat.id, '❌ Não conseguimos processar este bilhete via BilheteTracker. Tente novamente em alguns minutos.', undefined, message.message_id);
+                    return;
                 }
-            }
-            await sendTelegramMessage(message.chat.id, '❌ Não conseguimos processar este bilhete via BilheteTracker. Tente novamente em alguns minutos.', undefined, message.message_id);
-            return res.json({ ok: true });
-        }
-        // Priorizar valores do caption se disponíveis, senão usar os extraídos pela IA
-        const casaDeAposta = casaDeApostaFromCaption || normalizedData.casaDeAposta || 'N/D';
-        const tipster = tipsterFromCaption || normalizedData.tipster || '';
-        const esporte = normalizedData.esporte || 'Outros';
-        const jogo = normalizedData.jogo || message.caption || 'Aposta importada pelo Telegram';
-        const dataJogo = normalizedData.dataJogo ? new Date(normalizedData.dataJogo) : new Date();
-        console.log('=== CRIANDO APOSTA NO BANCO ===');
-        console.log('Banca ID:', bancaPadrao.id);
-        console.log('User ID:', user.id);
-        const novaAposta = await prisma.bet.create({
-            data: {
-                bancaId: bancaPadrao.id,
-                esporte,
-                jogo,
-                torneio: normalizedData.torneio || null,
-                pais: normalizedData.pais || null,
-                mercado: formatMarketText(normalizedData.mercado),
-                tipoAposta: normalizedData.tipoAposta || 'Simples',
-                valorApostado: normalizedData.valorApostado || 0,
-                odd: normalizedData.odd || 1,
-                bonus: 0,
-                dataJogo,
-                tipster: tipster || null,
-                status: normalizedData.status || 'Pendente',
-                casaDeAposta: casaDeAposta,
-                retornoObtido: normalizedData.status === 'Ganha'
-                    ? (normalizedData.valorApostado || 0) * (normalizedData.odd || 1)
-                    : null
-            }
-        });
-        console.log('=== APOSTA CRIADA COM SUCESSO ===');
-        console.log('Aposta ID gerado:', novaAposta.id);
-        console.log('Aposta completa:', JSON.stringify(novaAposta, null, 2));
-        emitBetEvent({
-            userId: user.id,
-            type: 'created',
-            payload: { betId: novaAposta.id, source: 'telegram' }
-        });
-        // Buscar a aposta completa com todos os dados
-        const apostaCompleta = await prisma.bet.findUnique({
-            where: { id: novaAposta.id }
-        });
-        console.log('=== VERIFICANDO APOSTA NO BANCO ===');
-        console.log('Aposta encontrada?', !!apostaCompleta);
-        if (apostaCompleta) {
-            console.log('ID da aposta encontrada:', apostaCompleta.id);
-            console.log('Banca ID da aposta:', apostaCompleta.bancaId);
-        }
-        else {
-            console.error('ERRO: Aposta não encontrada após criação!');
-        }
-        log.info({
-            betId: novaAposta.id,
-            apostaCompletaFound: !!apostaCompleta,
-            processingMessageId
-        }, 'Aposta criada, preparando para enviar mensagem de resposta');
-        // Enviar mensagem formatada com os dados da aposta
-        let mensagemEnviadaComSucesso = false;
-        try {
-            if (apostaCompleta) {
-                let keyboard;
+                const casaDeAposta = casaDeApostaFromCaption || normalizedData.casaDeAposta || 'N/D';
+                const tipster = tipsterFromCaption || normalizedData.tipster || '';
+                const esporte = normalizedData.esporte || 'Outros';
+                const mercadoNormalizado = normalizeTextSegments(normalizedData.mercado);
+                const apostaNormalizada = normalizeTextSegments(normalizedData.aposta);
+                const jogoBase = normalizedData.jogo || message.caption || 'Aposta importada pelo Telegram';
+                const jogoDerivado = deriveEventName({
+                    normalizedGame: normalizedData.jogo,
+                    apostaText: apostaNormalizada,
+                    mercadoText: mercadoNormalizado,
+                    caption: message.caption
+                });
+                const jogo = !normalizedData.jogo || !isLikelyEventName(normalizedData.jogo)
+                    ? (jogoDerivado || jogoBase)
+                    : normalizedData.jogo;
+                const dataJogo = normalizedData.dataJogo ? new Date(normalizedData.dataJogo) : new Date();
+                let mercadoParaSalvar = formatMarketText(mercadoNormalizado);
+                if (mercadoParaSalvar === 'N/D') {
+                    const mercadoDerivado = deriveMarketFromBetSelections(apostaNormalizada, jogo);
+                    if (mercadoDerivado) {
+                        mercadoParaSalvar = mercadoDerivado;
+                    }
+                }
+                const novaAposta = await prisma.bet.create({
+                    data: {
+                        bancaId: bancaPadrao.id,
+                        esporte,
+                        jogo,
+                        torneio: normalizedData.torneio || null,
+                        pais: normalizedData.pais || null,
+                        mercado: mercadoParaSalvar,
+                        tipoAposta: normalizedData.tipoAposta || 'Simples',
+                        valorApostado: normalizedData.valorApostado || 0,
+                        odd: normalizedData.odd || 1,
+                        bonus: 0,
+                        dataJogo,
+                        tipster: tipster || null,
+                        status: normalizedData.status || 'Pendente',
+                        casaDeAposta,
+                        aposta: apostaNormalizada,
+                        retornoObtido: normalizedData.status === 'Ganha'
+                            ? (normalizedData.valorApostado || 0) * (normalizedData.odd || 1)
+                            : null
+                    }
+                });
+                emitBetEvent({
+                    userId: user.id,
+                    type: 'created',
+                    payload: { betId: novaAposta.id, source: 'telegram' }
+                });
+                const apostaCompleta = await prisma.bet.findUnique({
+                    where: { id: novaAposta.id }
+                });
+                log.info({
+                    betId: novaAposta.id,
+                    apostaCompletaFound: !!apostaCompleta,
+                    processingMessageId
+                }, 'Aposta criada, preparando para enviar mensagem de resposta');
+                let mensagemEnviadaComSucesso = false;
+                let reaproveitouMensagemDeProcessamento = false;
                 try {
-                    keyboard = createBetInlineKeyboard(apostaCompleta.id);
-                    console.log('✅ Keyboard criado com sucesso');
-                    console.log('Keyboard type:', typeof keyboard);
-                    console.log('Keyboard tem inline_keyboard?', !!keyboard?.inline_keyboard);
-                    console.log('Keyboard inline_keyboard é array?', Array.isArray(keyboard?.inline_keyboard));
-                    console.log('Número de linhas:', keyboard?.inline_keyboard?.length);
-                }
-                catch (keyboardError) {
-                    console.error('ERRO ao criar keyboard:', keyboardError);
-                    log.error({ error: keyboardError, betId: apostaCompleta.id }, 'Erro ao criar keyboard');
-                    // Criar keyboard de fallback em caso de erro
-                    keyboard = {
-                        inline_keyboard: [
-                            [
-                                { text: '✏️ Editar', callback_data: `editar_${apostaCompleta.id}` },
-                                { text: '🗑️ Excluir', callback_data: `excluir_${apostaCompleta.id}` }
-                            ],
-                            [
-                                { text: '📚 Alterar Status', callback_data: `alterar_status_${apostaCompleta.id}` }
-                            ]
-                        ]
-                    };
-                    console.log('Usando keyboard de fallback após erro:', JSON.stringify(keyboard, null, 2));
-                }
-                // Validar se o keyboard foi criado corretamente
-                if (!keyboard || !keyboard.inline_keyboard || !Array.isArray(keyboard.inline_keyboard) || keyboard.inline_keyboard.length === 0) {
-                    console.error('ERRO: Keyboard vazio ou inválido após criação!');
-                    console.error('Keyboard recebido:', JSON.stringify(keyboard, null, 2));
-                    log.error({ betId: apostaCompleta.id, keyboard }, 'Keyboard vazio ou inválido ao criar botões');
-                    // Criar keyboard de fallback
-                    keyboard = {
-                        inline_keyboard: [
-                            [
-                                { text: '✏️ Editar', callback_data: `editar_${apostaCompleta.id}` },
-                                { text: '🗑️ Excluir', callback_data: `excluir_${apostaCompleta.id}` }
-                            ],
-                            [
-                                { text: '📚 Alterar Status', callback_data: `alterar_status_${apostaCompleta.id}` }
-                            ]
-                        ]
-                    };
-                    console.log('Usando keyboard de fallback após validação:', JSON.stringify(keyboard, null, 2));
-                }
-                // Validação final antes de enviar
-                console.log('=== VALIDAÇÃO FINAL DO KEYBOARD ===');
-                console.log('Keyboard válido?', !!keyboard && !!keyboard.inline_keyboard && Array.isArray(keyboard.inline_keyboard) && keyboard.inline_keyboard.length > 0);
-                console.log('Keyboard completo:', JSON.stringify(keyboard, null, 2));
-                // Tentar formatar a mensagem completa
-                let mensagemFormatada;
-                try {
-                    mensagemFormatada = formatBetMessage(apostaCompleta, bancaPadrao);
-                }
-                catch (formatError) {
-                    log.error(formatError, 'Erro ao formatar mensagem, usando mensagem simplificada');
-                    // Mensagem simplificada mas completa
-                    mensagemFormatada = `✅ Bilhete processado com sucesso!
+                    if (apostaCompleta) {
+                        let keyboard;
+                        try {
+                            keyboard = createBetInlineKeyboard(apostaCompleta.id);
+                        }
+                        catch (keyboardError) {
+                            log.error({ error: keyboardError, betId: apostaCompleta.id }, 'Erro ao criar keyboard');
+                            keyboard = {
+                                inline_keyboard: [
+                                    [
+                                        { text: '✏️ Editar', callback_data: `editar_${apostaCompleta.id}` },
+                                        { text: '🗑️ Excluir', callback_data: `excluir_${apostaCompleta.id}` }
+                                    ],
+                                    [{ text: '📚 Alterar Status', callback_data: `alterar_status_${apostaCompleta.id}` }]
+                                ]
+                            };
+                        }
+                        if (!keyboard ||
+                            !keyboard.inline_keyboard ||
+                            !Array.isArray(keyboard.inline_keyboard) ||
+                            keyboard.inline_keyboard.length === 0) {
+                            log.error({ betId: apostaCompleta.id, keyboard }, 'Keyboard vazio ou inválido ao criar botões');
+                            keyboard = {
+                                inline_keyboard: [
+                                    [
+                                        { text: '✏️ Editar', callback_data: `editar_${apostaCompleta.id}` },
+                                        { text: '🗑️ Excluir', callback_data: `excluir_${apostaCompleta.id}` }
+                                    ],
+                                    [{ text: '📚 Alterar Status', callback_data: `alterar_status_${apostaCompleta.id}` }]
+                                ]
+                            };
+                        }
+                        let mensagemFormatada;
+                        try {
+                            mensagemFormatada = formatBetMessage(apostaCompleta, bancaPadrao);
+                        }
+                        catch (formatError) {
+                            log.error(formatError, 'Erro ao formatar mensagem, usando fallback');
+                            const esporteFallback = normalizarEsporteParaOpcao(apostaCompleta.esporte || '') || apostaCompleta.esporte || 'N/D';
+                            mensagemFormatada = `✅ Bilhete processado com sucesso!
 
 🆔 ID: ${apostaCompleta.id}
 💰 Banca: ${bancaPadrao.nome}
 ${apostaCompleta.status === 'Ganha' ? '✅' : apostaCompleta.status === 'Perdida' ? '❌' : '⏳'} Status: ${apostaCompleta.status || 'Pendente'}
-💎 ${apostaCompleta.status === 'Ganha' && apostaCompleta.retornoObtido ? `Lucro: R$ ${(apostaCompleta.retornoObtido - (apostaCompleta.valorApostado || 0)).toFixed(2).replace('.', ',')}` : apostaCompleta.status === 'Perdida' ? `Prejuízo: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}` : 'Sem lucro ou prejuízo.'}
-🏀 Esporte: ${apostaCompleta.esporte || 'N/D'}
+💎 ${apostaCompleta.status === 'Ganha' && apostaCompleta.retornoObtido
+                                ? `Lucro: R$ ${(apostaCompleta.retornoObtido - (apostaCompleta.valorApostado || 0))
+                                    .toFixed(2)
+                                    .replace('.', ',')}`
+                                : apostaCompleta.status === 'Perdida'
+                                    ? `Prejuízo: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}`
+                                    : 'Sem lucro ou prejuízo.'}
+🏀 Esporte: ${esporteFallback}
 🏆 Torneio: ${apostaCompleta.torneio || 'N/D'}
 ⚔️ Evento: ${apostaCompleta.jogo || 'N/D'}
-🎯 Aposta: ${apostaCompleta.jogo || 'N/D'}${apostaCompleta.mercado && apostaCompleta.mercado !== 'N/D' ? ` - ${apostaCompleta.mercado}` : ''}
-💵 Valor Apostado: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}
-📊 Odd: ${apostaCompleta.odd || 1}
-💚 Retorno Potencial: R$ ${((apostaCompleta.valorApostado || 0) * (apostaCompleta.odd || 1)).toFixed(2).replace('.', ',')}
+🎰 Aposta: ${apostaCompleta.jogo || 'N/D'}${apostaCompleta.mercado && apostaCompleta.mercado !== 'N/D'
+                                ? ` - ${apostaCompleta.mercado}`
+                                : ''}
+💰 Valor Apostado: R$ ${(apostaCompleta.valorApostado || 0).toFixed(2).replace('.', ',')}
+🎲 Odd: ${apostaCompleta.odd || 1}
+💵 Retorno Potencial: R$ ${((apostaCompleta.valorApostado || 0) * (apostaCompleta.odd || 1)).toFixed(2).replace('.', ',')}
 📄 Tipo: ${apostaCompleta.tipoAposta || 'Simples'}
 📅 Data: ${apostaCompleta.dataJogo ? new Date(apostaCompleta.dataJogo).toLocaleDateString('pt-BR') : 'N/D'}
 🎁 Bônus: ${(apostaCompleta.bonus || 0) > 0 ? `R$ ${apostaCompleta.bonus.toFixed(2).replace('.', ',')}` : 'Não'}
 🏠 Casa: ${apostaCompleta.casaDeAposta || 'N/D'}
 👤 Tipster: ${apostaCompleta.tipster || 'N/D'}`;
-                }
-                // Verificar se a mensagem não excede o limite do Telegram (4096 caracteres)
-                if (mensagemFormatada.length > 4096) {
-                    log.warn({
-                        messageLength: mensagemFormatada.length,
-                        betId: apostaCompleta.id
-                    }, 'Mensagem muito longa para o Telegram, truncando...');
-                    mensagemFormatada = mensagemFormatada.substring(0, 4000) + '\n\n... (mensagem truncada)';
-                }
-                // Validação final antes de enviar
-                console.log('=== PREPARANDO PARA ENVIAR MENSAGEM ===');
-                console.log('Bet ID:', apostaCompleta.id);
-                console.log('Chat ID:', message.chat.id);
-                console.log('Keyboard será enviado?', !!keyboard);
-                console.log('Keyboard completo:', JSON.stringify(keyboard, null, 2));
-                console.log('Tamanho da mensagem:', mensagemFormatada.length);
-                log.info({
-                    betId: apostaCompleta.id,
-                    chatId: message.chat.id,
-                    keyboard: JSON.stringify(keyboard),
-                    messageLength: mensagemFormatada.length,
-                    messagePreview: mensagemFormatada.substring(0, 100),
-                    keyboardValid: !!(keyboard && keyboard.inline_keyboard && Array.isArray(keyboard.inline_keyboard) && keyboard.inline_keyboard.length > 0)
-                }, 'Enviando mensagem completa com botões inline');
-                // Enviar mensagem com botões - SEMPRE com os botões e como resposta ao bilhete original
-                log.info({
-                    betId: apostaCompleta.id,
-                    chatId: message.chat.id,
-                    originalMessageId: message.message_id
-                }, 'Chamando sendTelegramMessage como resposta ao bilhete original...');
-                let result = await sendTelegramMessage(message.chat.id, mensagemFormatada, keyboard, message.message_id);
-                log.info({
-                    betId: apostaCompleta.id,
-                    resultOk: result?.ok,
-                    hasResult: !!result,
-                    messageId: result?.result?.message_id
-                }, 'Resultado do envio da mensagem');
-                if (!result || !result.ok) {
-                    log.error({
-                        betId: apostaCompleta.id,
-                        result,
-                        chatId: message.chat.id,
-                        errorDescription: result?.description,
-                        errorCode: result?.error_code,
-                        keyboard: JSON.stringify(keyboard)
-                    }, 'Falha ao enviar mensagem com botões, tentando novamente...');
-                    // Tentar novamente - pode ser um erro temporário
-                    await new Promise(resolve => setTimeout(resolve, 1000)); // Aguardar 1 segundo
-                    result = await sendTelegramMessage(message.chat.id, mensagemFormatada, keyboard, message.message_id);
-                    if (!result || !result.ok) {
-                        log.error({
-                            betId: apostaCompleta.id,
-                            result,
-                            chatId: message.chat.id
-                        }, 'Falha na segunda tentativa, tentando sem botões como último recurso...');
-                        // Última tentativa: enviar sem botões para garantir que a mensagem seja enviada, mas ainda como resposta
-                        const resultWithoutButtons = await sendTelegramMessage(message.chat.id, mensagemFormatada, undefined, message.message_id);
-                        if (!resultWithoutButtons || !resultWithoutButtons.ok) {
-                            log.error({
-                                betId: apostaCompleta.id,
-                                resultWithoutButtons
-                            }, 'Falha ao enviar mensagem mesmo sem botões');
+                        }
+                        if (mensagemFormatada.length > 4096) {
+                            log.warn({ messageLength: mensagemFormatada.length, betId: apostaCompleta.id }, 'Mensagem longa, truncando');
+                            mensagemFormatada = mensagemFormatada.substring(0, 4000) + '\n\n... (mensagem truncada)';
+                        }
+                        let result = await sendTelegramMessage(message.chat.id, mensagemFormatada, keyboard, message.message_id);
+                        if (!result || !result.ok) {
+                            log.error({ betId: apostaCompleta.id, result }, 'Falha ao enviar mensagem com botões, tentando novamente');
+                            await new Promise((resolve) => setTimeout(resolve, 1000));
+                            result = await sendTelegramMessage(message.chat.id, mensagemFormatada, keyboard, message.message_id);
+                            if (!result || !result.ok) {
+                                const resultWithoutButtons = await sendTelegramMessage(message.chat.id, mensagemFormatada, undefined, message.message_id);
+                                if (resultWithoutButtons?.ok) {
+                                    mensagemEnviadaComSucesso = true;
+                                }
+                            }
+                            else {
+                                mensagemEnviadaComSucesso = true;
+                                if (result.result?.message_id) {
+                                    try {
+                                        const updatedKeyboard = createBetInlineKeyboard(apostaCompleta.id, result.result.message_id, message.chat.id);
+                                        await editMessageText(message.chat.id, result.result.message_id, mensagemFormatada, updatedKeyboard);
+                                    }
+                                    catch (error) {
+                                        log.warn({ error, betId: apostaCompleta.id }, 'Erro ao atualizar teclado após resend');
+                                    }
+                                }
+                            }
                         }
                         else {
-                            log.info({
-                                betId: apostaCompleta.id,
-                                messageId: resultWithoutButtons.result?.message_id
-                            }, 'Mensagem enviada sem botões como último recurso');
                             mensagemEnviadaComSucesso = true;
+                            if (result.result?.message_id) {
+                                try {
+                                    const updatedKeyboard = createBetInlineKeyboard(apostaCompleta.id, result.result.message_id, message.chat.id);
+                                    await editMessageText(message.chat.id, result.result.message_id, mensagemFormatada, updatedKeyboard);
+                                }
+                                catch (error) {
+                                    log.warn({ error, betId: apostaCompleta.id }, 'Erro ao atualizar teclado após envio');
+                                }
+                            }
                         }
                     }
                     else {
-                        log.info({
-                            betId: apostaCompleta.id,
-                            messageId: result.result?.message_id
-                        }, 'Mensagem enviada com sucesso na segunda tentativa');
+                        log.warn({ betId: novaAposta.id }, 'Aposta completa não encontrada após criação');
+                        const result = await sendTelegramMessage(message.chat.id, '✅ Aposta registrada com sucesso no sistema.', undefined, message.message_id);
+                        if (result && result.ok) {
+                            mensagemEnviadaComSucesso = true;
+                        }
+                    }
+                }
+                catch (messageError) {
+                    log.error(messageError, 'Erro ao enviar mensagem de resposta no Telegram');
+                    try {
+                        const result = await sendTelegramMessage(message.chat.id, `✅ Bilhete processado e registrado no sistema com sucesso!\n\n🆔 ID: ${novaAposta.id}`, undefined, message.message_id);
+                        if (result && result.ok) {
+                            mensagemEnviadaComSucesso = true;
+                        }
+                    }
+                    catch (fallbackError) {
+                        log.error(fallbackError, 'Falha ao enviar mensagem de fallback');
+                    }
+                }
+                const fallbackSimpleMessage = `✅ Bilhete registrado com sucesso!\n\n🆔 ID: ${novaAposta.id}\n💰 Banca: ${bancaPadrao.nome}\nConsulte o painel para ver os detalhes completos.`;
+                if (!mensagemEnviadaComSucesso) {
+                    const fallbackResult = await sendTelegramMessage(message.chat.id, fallbackSimpleMessage);
+                    if (fallbackResult?.ok) {
                         mensagemEnviadaComSucesso = true;
-                        // Atualizar a mensagem para incluir messageId e chatId nas URLs dos botões
-                        if (result.result?.message_id) {
-                            try {
-                                const updatedKeyboard = createBetInlineKeyboard(apostaCompleta.id, result.result.message_id, message.chat.id);
-                                await editMessageText(message.chat.id, result.result.message_id, mensagemFormatada, updatedKeyboard);
-                                log.info({
-                                    betId: apostaCompleta.id,
-                                    messageId: result.result.message_id,
-                                    chatId: message.chat.id
-                                }, 'Mensagem atualizada com messageId e chatId nos botões (segunda tentativa)');
-                            }
-                            catch (error) {
-                                log.warn({ error, betId: apostaCompleta.id }, 'Erro ao atualizar mensagem com messageId e chatId, mas mensagem já foi enviada');
-                            }
-                        }
                     }
                 }
-                else {
-                    log.info({
-                        betId: apostaCompleta.id,
-                        messageId: result.result?.message_id
-                    }, 'Mensagem enviada com sucesso');
-                    mensagemEnviadaComSucesso = true;
-                    // Atualizar a mensagem para incluir messageId e chatId nas URLs dos botões
-                    if (result.result?.message_id) {
+                if (!mensagemEnviadaComSucesso && processingMessageId) {
+                    try {
+                        let keyboardParaProcessamento;
                         try {
-                            const updatedKeyboard = createBetInlineKeyboard(apostaCompleta.id, result.result.message_id, message.chat.id);
-                            await editMessageText(message.chat.id, result.result.message_id, mensagemFormatada, updatedKeyboard);
-                            log.info({
-                                betId: apostaCompleta.id,
-                                messageId: result.result.message_id,
-                                chatId: message.chat.id
-                            }, 'Mensagem atualizada com messageId e chatId nos botões');
+                            keyboardParaProcessamento = createBetInlineKeyboard(novaAposta.id, processingMessageId, message.chat.id);
                         }
-                        catch (error) {
-                            log.warn({ error, betId: apostaCompleta.id }, 'Erro ao atualizar mensagem com messageId e chatId, mas mensagem já foi enviada');
+                        catch (keyboardError) {
+                            log.warn({ keyboardError, betId: novaAposta.id }, 'Erro ao criar keyboard ao reutilizar mensagem de processamento');
+                            keyboardParaProcessamento = undefined;
+                        }
+                        await editMessageText(message.chat.id, processingMessageId, fallbackSimpleMessage, keyboardParaProcessamento);
+                        mensagemEnviadaComSucesso = true;
+                        reaproveitouMensagemDeProcessamento = true;
+                    }
+                    catch (editError) {
+                        log.warn({ editError, processingMessageId, betId: novaAposta.id }, 'Falha ao editar mensagem de processamento com fallback');
+                        try {
+                            await editMessageText(message.chat.id, processingMessageId, fallbackSimpleMessage);
+                            mensagemEnviadaComSucesso = true;
+                            reaproveitouMensagemDeProcessamento = true;
+                        }
+                        catch (secondEditError) {
+                            log.error({ secondEditError, processingMessageId, betId: novaAposta.id }, 'Falha final ao atualizar mensagem de processamento');
                         }
                     }
                 }
-            }
-            else {
-                log.warn({ betId: novaAposta.id }, 'Aposta completa não encontrada após criação');
-                const result = await sendTelegramMessage(message.chat.id, '✅ Aposta registrada com sucesso no sistema.', undefined, message.message_id);
-                if (result && result.ok) {
-                    mensagemEnviadaComSucesso = true;
+                if (processingMessageId && mensagemEnviadaComSucesso) {
+                    if (reaproveitouMensagemDeProcessamento) {
+                        log.info({ processingMessageId }, 'Mantendo mensagem de processamento como resposta final após reaproveitamento');
+                    }
+                    else {
+                        log.info({ processingMessageId }, 'Deletando mensagem de processando após envio bem-sucedido');
+                        try {
+                            await deleteMessage(message.chat.id, processingMessageId);
+                        }
+                        catch (deleteError) {
+                            log.error(deleteError, 'Erro ao deletar mensagem de processando');
+                        }
+                    }
+                }
+                else if (processingMessageId) {
+                    try {
+                        await editMessageText(message.chat.id, processingMessageId, '⚠️ Bilhete registrado, mas não consegui enviar o resumo completo. Verifique no painel para todos os detalhes.');
+                    }
+                    catch (editarAvisoErro) {
+                        log.warn({ editarAvisoErro, processingMessageId }, 'Falha ao atualizar mensagem de processamento com aviso de erro');
+                    }
+                    log.warn({
+                        processingMessageId,
+                        mensagemEnviadaComSucesso
+                    }, 'Mantendo mensagem de processando pois a mensagem final não foi enviada');
                 }
             }
-        }
-        catch (messageError) {
-            log.error(messageError, 'Erro ao tentar enviar mensagem de resposta no Telegram');
-            // Tentar enviar mensagem de erro simples, mas ainda como resposta
-            try {
-                const result = await sendTelegramMessage(message.chat.id, `✅ Bilhete processado e registrado no sistema com sucesso!\n\n🆔 ID: ${novaAposta.id}`, undefined, message.message_id);
-                if (result && result.ok) {
-                    mensagemEnviadaComSucesso = true;
-                }
+            catch (backgroundError) {
+                log.error(backgroundError, 'Erro inesperado ao processar bilhete em background');
             }
-            catch (fallbackError) {
-                log.error(fallbackError, 'Falha ao enviar mensagem de fallback');
-            }
-        }
-        // Deletar mensagem de "processando" APENAS se a mensagem final foi enviada com sucesso
-        if (processingMessageId && mensagemEnviadaComSucesso) {
-            log.info({ processingMessageId }, 'Deletando mensagem de processando após envio bem-sucedido');
-            try {
-                await deleteMessage(message.chat.id, processingMessageId);
-            }
-            catch (deleteError) {
-                log.error(deleteError, 'Erro ao deletar mensagem de processando');
-            }
-        }
-        else if (processingMessageId) {
-            log.warn({
-                processingMessageId,
-                mensagemEnviadaComSucesso
-            }, 'Mantendo mensagem de processando pois a mensagem final não foi enviada');
-        }
-        res.json({ ok: true });
+        };
+        processTicketInBackground().catch((error) => {
+            log.error({ error }, 'Promise rejeitada ao processar bilhete em background');
+        });
+        return res.json({ ok: true });
     }
     catch (error) {
         log.error(error, 'Erro no webhook do Telegram');

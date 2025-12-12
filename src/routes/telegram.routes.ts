@@ -977,7 +977,7 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     let apostaLine: string;
     if (apostaText.includes('\n')) {
       const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-      const primaryLine = lines.shift() ?? apostaText.trim() || 'N/D';
+      const primaryLine = (lines.shift() ?? apostaText.trim()) || 'N/D';
       const remaining = lines.length > 0 ? `\n${lines.join('\n')}` : '';
       apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
     } else {
