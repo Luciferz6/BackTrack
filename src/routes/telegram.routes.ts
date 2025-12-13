@@ -1066,13 +1066,29 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
           return false;
         }
 
-        // Ignorar linhas que sejam apenas rótulos de mercado já exibidos em "🎯 Mercado"
-        if (marketText && (marketText === lower || marketText.includes(lower) || lower.includes(marketText))) {
-          return false;
-        }
+        // Linhas de seleção normalmente têm jogador/linha, com números ou separador " - ".
+        // Não devemos tratá-las como rótulos puros de mercado.
+        const hasNumber = /\d/.test(lower);
+        const hasHyphenSeparator = /\s-\s/.test(lower);
+        const looksLikeSelection = hasNumber || hasHyphenSeparator;
 
-        if (marketParts.some((part) => part && (lower === part || lower.includes(part) || part.includes(lower)))) {
-          return false;
+        // Ignorar linhas que sejam apenas rótulos de mercado já exibidos em "🎯 Mercado"
+        // Somente aplicamos essa heurística para linhas que NÃO parecem seleções completas.
+        if (!looksLikeSelection) {
+          if (marketText && (marketText === lower || marketText.includes(lower) || lower.includes(marketText))) {
+            return false;
+          }
+
+          if (
+            marketParts.some((part) => {
+              const partLower = part.toLowerCase();
+              if (!partLower) return false;
+              // Considerar como rótulo puro apenas quando os textos são essencialmente equivalentes.
+              return partLower === lower || lower === partLower;
+            })
+          ) {
+            return false;
+          }
         }
 
         return true;
