@@ -873,41 +873,6 @@ const STATUS_EMOJIS: Record<string, string> = {
   Void: '⚪️'
 };
 
-const formatMegaTeamTotalsBet = (apostaText: string): string => {
-  if (!apostaText) {
-    return apostaText;
-  }
-
-  const segments = apostaText
-    .split(/\n+/)
-    .flatMap((part) => part.split('/'))
-    .map((part) => part.trim())
-    .filter(Boolean);
-
-  let escanteiosSegment: string | null = null;
-  let cartoesSegment: string | null = null;
-
-  for (const segment of segments) {
-    const lower = segment.toLowerCase();
-
-    if (!escanteiosSegment && /escanteio/i.test(lower) && /cada\s+time\s+bate/i.test(lower)) {
-      escanteiosSegment = segment.trim();
-      continue;
-    }
-
-    if (!cartoesSegment && /cart[aã]o|cart[õo]es/i.test(lower) && /cada\s+time\s+recebe/i.test(lower)) {
-      cartoesSegment = segment.trim();
-      continue;
-    }
-  }
-
-  if (escanteiosSegment && cartoesSegment) {
-    return `${escanteiosSegment} / ${cartoesSegment}`;
-  }
-
-  return apostaText;
-};
-
 const formatBetMessage = (bet: Bet, banca: Bankroll) => {
   let esporteFormatado = normalizarEsporteParaOpcao(bet.esporte || '') || bet.esporte || '';
   try {
@@ -1103,10 +1068,6 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     } else {
       apostaText = bet.jogo || 'N/D';
     }
-
-    // Caso especial Mega Cotações: garantir que escanteios + cartões apareçam
-    // juntos em uma única linha com barra, mesmo que venham separados.
-    apostaText = formatMegaTeamTotalsBet(apostaText);
 
     let apostaLine: string;
     if (apostaText.includes('\n')) {
@@ -2204,18 +2165,18 @@ router.post('/webhook', async (req, res) => {
         // Tipster:
         // 1) Se o usuário informar na legenda do Telegram (segunda linha), usar esse valor.
         // 2) Caso contrário, usar o tipster vindo do BilheteTracker (se existir).
-        // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site
-        //    (campo "Apelido" da tela de perfil, mapeado em nomeCompleto).
-        // 4) Como último recurso, usar o telegramUsername salvo na conta.
+        // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site:
+        //    - Primeiro tentar o telegramUsername salvo na conta.
+        //    - Se não houver, usar o primeiro nome do usuário (derivado de nomeCompleto).
         let tipster = (tipsterFromCaption || normalizedData.tipster || '').trim();
         if (!tipster) {
-          const nickname = (user.nomeCompleto || '').trim();
-          if (nickname) {
-            tipster = nickname;
+          const userTelegramUsername = (user.telegramUsername || '').trim();
+          if (userTelegramUsername) {
+            tipster = userTelegramUsername;
           } else {
-            const userTelegramUsername = (user.telegramUsername || '').trim();
-            if (userTelegramUsername) {
-              tipster = userTelegramUsername;
+            const fullName = (user.nomeCompleto || '').trim();
+            if (fullName) {
+              tipster = fullName.split(' ')[0] || fullName;
             }
           }
         }
