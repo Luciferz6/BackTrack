@@ -843,37 +843,62 @@ const formatBetMessage = (bet, banca) => {
             }
         }
         // Limpar o texto final de mercado para remover ruídos como
-        // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes".
+        // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
+        // priorizando versões mais específicas (ex.: "Jogador pontos" em vez de apenas "Pontos").
         const rawMarketSegments = mercadoDisplay
             .split(/\n+/)
             .flatMap((part) => part.split('/'))
             .map((part) => part.trim())
             .filter(Boolean);
-        const normalizedMarketSegments = [];
-        const seenMarketKeys = new Set();
+        const marketMap = new Map();
+        const keyOrder = [];
+        const buildMarketKey = (text) => {
+            return text
+                .toLowerCase()
+                // ignorar palavras genéricas de direção/escala
+                .replace(/\b(mais|menos)\b/gi, '')
+                // ignorar preposições simples
+                .replace(/\b(de|do|da|das|dos)\b/gi, '')
+                // ignorar prefixo "jogador" para que "Pontos" e "Jogador pontos" colapsem
+                .replace(/\bjogador\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        };
+        const isBetterSegment = (existing, candidate) => {
+            const existingLower = existing.toLowerCase();
+            const candidateLower = candidate.toLowerCase();
+            const existingHasJogador = existingLower.includes('jogador');
+            const candidateHasJogador = candidateLower.includes('jogador');
+            if (!existingHasJogador && candidateHasJogador) {
+                return true;
+            }
+            if (candidate.length > existing.length) {
+                return true;
+            }
+            return false;
+        };
         for (const segment of rawMarketSegments) {
             // Remover parênteses com descrições genéricas (ex.: "(Mais de/Menos de)")
             const withoutParens = segment.replace(/\([^)]*\)/g, '').trim();
             if (!withoutParens) {
                 continue;
             }
-            const lower = withoutParens.toLowerCase();
-            // Gerar uma chave de deduplicação que ignore palavras como "mais",
-            // "menos" e preposições simples, mas preserve contexto como "1º quarto".
-            const key = lower
-                .replace(/\b(mais|menos)\b/gi, '')
-                .replace(/\b(de|do|da|das|dos)\b/gi, '')
-                .replace(/\s+/g, ' ')
-                .trim();
+            const key = buildMarketKey(withoutParens);
             if (!key) {
                 continue;
             }
-            if (seenMarketKeys.has(key)) {
-                continue;
+            if (!marketMap.has(key)) {
+                marketMap.set(key, withoutParens);
+                keyOrder.push(key);
             }
-            seenMarketKeys.add(key);
-            normalizedMarketSegments.push(withoutParens);
+            else {
+                const existing = marketMap.get(key);
+                if (isBetterSegment(existing, withoutParens)) {
+                    marketMap.set(key, withoutParens);
+                }
+            }
         }
+        const normalizedMarketSegments = keyOrder.map((key) => marketMap.get(key)).filter(Boolean);
         const mercadoDisplayClean = normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
         const marketLines = extractMarketSelections(bet.mercado);
@@ -1820,7 +1845,25 @@ router.post('/webhook', async (req, res) => {
                     return;
                 }
                 const casaDeAposta = casaDeApostaFromCaption || normalizedData.casaDeAposta || 'N/D';
-                const tipster = tipsterFromCaption || normalizedData.tipster || '';
+                // Tipster:
+                // 1) Se o usuário informar na legenda do Telegram (segunda linha), usar esse valor.
+                // 2) Caso contrário, usar o tipster vindo do BilheteTracker (se existir).
+                // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site:
+                //    - Primeiro tentar o telegramUsername salvo na conta.
+                //    - Se não houver, usar o primeiro nome do usuário (derivado de nomeCompleto).
+                let tipster = (tipsterFromCaption || normalizedData.tipster || '').trim();
+                if (!tipster) {
+                    const userTelegramUsername = (user.telegramUsername || '').trim();
+                    if (userTelegramUsername) {
+                        tipster = userTelegramUsername;
+                    }
+                    else {
+                        const fullName = (user.nomeCompleto || '').trim();
+                        if (fullName) {
+                            tipster = fullName.split(' ')[0] || fullName;
+                        }
+                    }
+                }
                 const esporte = normalizedData.esporte || 'Outros';
                 const mercadoNormalizado = normalizeTextSegments(normalizedData.mercado);
                 const apostaNormalizada = normalizeTextSegments(normalizedData.aposta);
