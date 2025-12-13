@@ -94,7 +94,9 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         usuario: {
           select: {
             membroDesde: true,
-            plano: true
+            plano: true,
+            telegramUsername: true,
+            nomeCompleto: true
           }
         }
       }
@@ -142,6 +144,24 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
       return res.status(400).json({ error: 'Data do evento inválida' });
     }
 
+    // Tipster:
+    // 1) Se vier preenchido na requisição, usa o valor informado.
+    // 2) Se vier vazio, usar o mesmo critério do fluxo do Telegram:
+    //    - Primeiro tentar o telegramUsername salvo na conta;
+    //    - Senão, usar o primeiro nome derivado de nomeCompleto.
+    let tipster = (data.tipster || '').trim();
+    if (!tipster) {
+      const userTelegramUsername = (banca.usuario.telegramUsername || '').trim();
+      if (userTelegramUsername) {
+        tipster = userTelegramUsername;
+      } else {
+        const fullName = (banca.usuario.nomeCompleto || '').trim();
+        if (fullName) {
+          tipster = fullName.split(' ')[0] || fullName;
+        }
+      }
+    }
+
     const aposta = await prisma.bet.create({
       data: {
         bancaId: data.bancaId,
@@ -155,7 +175,7 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
         odd: data.odd,
         bonus: data.bonus || 0,
         dataJogo: dataEventoDate,
-        tipster: data.tipster,
+        tipster: tipster || null,
         status: data.status || 'Pendente',
         casaDeAposta: data.casaDeAposta,
         retornoObtido: data.retornoObtido,
@@ -233,7 +253,9 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
         usuario: {
           select: {
             membroDesde: true,
-            plano: true
+            plano: true,
+            telegramUsername: true,
+            nomeCompleto: true
           }
         }
       }
@@ -282,6 +304,24 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
           throw new Error('Data do evento inválida');
         }
 
+        const banca = bancas.find(b => b.id === data.bancaId);
+        if (!banca) {
+          throw new Error('Banca não encontrada para esta aposta');
+        }
+
+        let tipster = (data.tipster || '').trim();
+        if (!tipster) {
+          const userTelegramUsername = (banca.usuario.telegramUsername || '').trim();
+          if (userTelegramUsername) {
+            tipster = userTelegramUsername;
+          } else {
+            const fullName = (banca.usuario.nomeCompleto || '').trim();
+            if (fullName) {
+              tipster = fullName.split(' ')[0] || fullName;
+            }
+          }
+        }
+
         const aposta = await prisma.bet.create({
           data: {
             bancaId: data.bancaId,
@@ -295,7 +335,7 @@ router.post('/bulk', authenticateToken, async (req: AuthRequest, res) => {
             odd: data.odd,
             bonus: data.bonus || 0,
             dataJogo: dataEventoDate,
-            tipster: data.tipster,
+            tipster: tipster || null,
             status: data.status || 'Pendente',
             casaDeAposta: data.casaDeAposta,
             retornoObtido: data.retornoObtido,
