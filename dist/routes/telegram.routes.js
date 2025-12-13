@@ -846,97 +846,26 @@ const formatBetMessage = (bet, banca) => {
         const mercadoDisplayClean = typeof bet.mercado === 'string' && bet.mercado.trim() !== ''
             ? bet.mercado.trim()
             : 'N/D';
-        // Formatar a linha de aposta priorizando o mercado detalhado quando existir
-        const marketLines = extractMarketSelections(bet.mercado);
-        // Se houver aposta, priorize ela na linha de aposta
-        let apostaText;
-        if (bet.aposta && bet.aposta.trim() !== '') {
-            apostaText = bet.aposta.trim();
-        }
-        else if (marketLines.length > 1) {
-            apostaText = marketLines.map((line) => `• ${line}`).join('\n');
-        }
-        else if (marketLines.length === 1) {
-            apostaText = marketLines[0];
-        }
-        else {
-            apostaText = bet.jogo || 'N/D';
-        }
+        // Formatar a linha de aposta SEM reconstruir ou aplicar heurísticas.
+        // Usamos exatamente o que foi salvo em bet.aposta (vindo do
+        // bilhete-tracker ou inserido manualmente).
+        const apostaBruta = (bet.aposta || '').trim();
         let apostaLine;
-        if (apostaText.includes('\n')) {
-            const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
-            const jogoLower = (bet.jogo || '').toLowerCase();
-            // Focar em remover apenas descrições puras de mercado (ex.: "Recepções (Mais de/Menos de)")
-            // usando o próprio texto de mercado salvo, para não descartar linhas com o jogador.
-            const marketText = (bet.mercado || '').toLowerCase();
-            const marketParts = marketText
+        if (!apostaBruta) {
+            apostaLine = `🎰 Aposta: ${bet.jogo || 'N/D'}`;
+        }
+        else if (apostaBruta.includes('\n')) {
+            const lines = apostaBruta
                 .split(/\n+/)
-                .flatMap((part) => part.split('/'))
-                .map((part) => part.trim())
+                .map((line) => line.trim())
                 .filter(Boolean);
-            const candidateLines = lines.filter((line) => {
-                const lower = line.toLowerCase();
-                if (!lower) {
-                    return false;
-                }
-                // Ignorar linhas que são claramente o evento/jogo
-                if (jogoLower && (lower === jogoLower || isLikelyEventName(line))) {
-                    return false;
-                }
-                // Linhas de seleção normalmente têm jogador/linha, com números ou separador " - ".
-                // Não devemos tratá-las como rótulos puros de mercado.
-                const hasNumber = /\d/.test(lower);
-                const hasHyphenSeparator = /\s-\s/.test(lower);
-                const looksLikeSelection = hasNumber || hasHyphenSeparator;
-                // Ignorar linhas que sejam apenas rótulos de mercado já exibidos em "🎯 Mercado"
-                // Somente aplicamos essa heurística para linhas que NÃO parecem seleções completas.
-                if (!looksLikeSelection) {
-                    if (marketText && (marketText === lower || marketText.includes(lower) || lower.includes(marketText))) {
-                        return false;
-                    }
-                    if (marketParts.some((part) => {
-                        const partLower = part.toLowerCase();
-                        if (!partLower)
-                            return false;
-                        // Considerar como rótulo puro apenas quando os textos são essencialmente equivalentes.
-                        return partLower === lower || lower === partLower;
-                    })) {
-                        return false;
-                    }
-                }
-                return true;
-            });
-            const primaryLine = (candidateLines[0] || lines[0] || apostaText.trim() || 'N/D');
-            const remainingLines = candidateLines.slice(1);
-            const remaining = remainingLines.length > 0 ? `\n${remainingLines.join('\n')}` : '';
-            apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
+            const primary = lines[0] || 'N/D';
+            const remaining = lines.slice(1);
+            const suffix = remaining.length > 0 ? `\n${remaining.join('\n')}` : '';
+            apostaLine = `🎰 Aposta: ${primary}${suffix}`;
         }
         else {
-            let singleLine = apostaText.trim();
-            // Em linhas únicas como "Recepções (Mais de/Menos de) - Devonta Smith - Under 4.5",
-            // remover o prefixo que é só o rótulo de mercado para deixar o foco na seleção.
-            const marketSource = (bet.mercado || '').toLowerCase();
-            if (marketSource) {
-                const marketParts = marketSource
-                    .split(/\n+/)
-                    .flatMap((part) => part.split('/'))
-                    .map((part) => part.trim())
-                    .filter(Boolean);
-                for (const part of marketParts) {
-                    const partLower = part.toLowerCase();
-                    if (!partLower)
-                        continue;
-                    if (singleLine.toLowerCase().startsWith(partLower)) {
-                        let trimmed = singleLine.substring(part.length);
-                        trimmed = trimmed.replace(/^[\s\-–:|]+/, '').trim();
-                        if (trimmed) {
-                            singleLine = trimmed;
-                        }
-                        break;
-                    }
-                }
-            }
-            apostaLine = `🎰 Aposta: ${singleLine}`;
+            apostaLine = `🎰 Aposta: ${apostaBruta}`;
         }
         return `✅ Bilhete processado com sucesso
 
