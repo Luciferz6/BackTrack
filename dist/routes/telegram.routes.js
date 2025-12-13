@@ -840,99 +840,69 @@ const formatBetMessage = (bet, banca) => {
         }
         const statusEmoji = STATUS_EMOJIS[bet.status] || '⏳';
         const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
-        // Mercado base calculado a partir do valor salvo e, quando fizer sentido,
-        // um mercado derivado a partir do texto da aposta.
+        // Mercado base calculado exclusivamente a partir do valor salvo.
+        // A partir de agora, NÃO derivamos mais nada do texto da aposta
+        // para o campo "mercado"; ele é tratado como fonte de verdade.
         const mercadoBase = formatMarketText(bet.mercado);
-        const mercadoDerivado = deriveMarketFromBetSelections(bet.aposta || '', bet.jogo || undefined);
-        // Se o mercado já vier consolidado do BilheteTracker para props de jogador
-        // (ex.: "Ressaltos + Pontos + Assistências (Jogador)"), não aplicar
-        // heurísticas adicionais em cima dele.
-        const isTrackerPlayerPropMarket = typeof bet.mercado === 'string' &&
-            /\(Jogador\)/i.test(bet.mercado) &&
-            bet.mercado.includes('+');
-        let mercadoDisplayClean;
-        if (isTrackerPlayerPropMarket) {
-            mercadoDisplayClean = bet.mercado.trim();
-        }
-        else {
-            // Construir uma visão mais rica de mercado combinando o que veio salvo com o que
-            // pode ser inferido do texto da aposta (útil para props como recepções, pontos etc.)
-            let mercadoDisplay = mercadoBase;
-            if (mercadoDerivado) {
-                if (mercadoBase === 'N/D') {
-                    mercadoDisplay = mercadoDerivado;
-                }
-                else {
-                    const baseLower = mercadoBase.toLowerCase();
-                    const derivLower = mercadoDerivado.toLowerCase();
-                    const containsRelation = baseLower === derivLower ||
-                        baseLower.includes(derivLower) ||
-                        derivLower.includes(baseLower);
-                    if (!containsRelation) {
-                        mercadoDisplay = `${mercadoBase} / ${mercadoDerivado}`;
-                    }
-                }
+        // Limpar o texto final de mercado para remover ruídos como
+        // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
+        // sempre trabalhando SOMENTE em cima de bet.mercado.
+        let mercadoDisplay = mercadoBase;
+        const rawMarketSegments = mercadoDisplay
+            .split(/\n+/)
+            .flatMap((part) => part.split('/'))
+            .map((part) => part.trim())
+            .filter(Boolean);
+        const marketMap = new Map();
+        const keyOrder = [];
+        const buildMarketKey = (text) => {
+            return text
+                .toLowerCase()
+                // ignorar palavras genéricas de direção/escala
+                .replace(/\b(mais|menos)\b/gi, '')
+                // ignorar preposições simples
+                .replace(/\b(de|do|da|das|dos)\b/gi, '')
+                // ignorar prefixo "jogador" para que "Pontos" e "Jogador pontos" colapsem
+                .replace(/\bjogador\b/gi, '')
+                .replace(/\s+/g, ' ')
+                .trim();
+        };
+        const isBetterSegment = (existing, candidate) => {
+            const existingLower = existing.toLowerCase();
+            const candidateLower = candidate.toLowerCase();
+            const existingHasJogador = existingLower.includes('jogador');
+            const candidateHasJogador = candidateLower.includes('jogador');
+            if (!existingHasJogador && candidateHasJogador) {
+                return true;
             }
-            // Limpar o texto final de mercado para remover ruídos como
-            // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
-            // priorizando versões mais específicas (ex.: "Jogador pontos" em vez de apenas "Pontos").
-            const rawMarketSegments = mercadoDisplay
-                .split(/\n+/)
-                .flatMap((part) => part.split('/'))
-                .map((part) => part.trim())
-                .filter(Boolean);
-            const marketMap = new Map();
-            const keyOrder = [];
-            const buildMarketKey = (text) => {
-                return text
-                    .toLowerCase()
-                    // ignorar palavras genéricas de direção/escala
-                    .replace(/\b(mais|menos)\b/gi, '')
-                    // ignorar preposições simples
-                    .replace(/\b(de|do|da|das|dos)\b/gi, '')
-                    // ignorar prefixo "jogador" para que "Pontos" e "Jogador pontos" colapsem
-                    .replace(/\bjogador\b/gi, '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-            };
-            const isBetterSegment = (existing, candidate) => {
-                const existingLower = existing.toLowerCase();
-                const candidateLower = candidate.toLowerCase();
-                const existingHasJogador = existingLower.includes('jogador');
-                const candidateHasJogador = candidateLower.includes('jogador');
-                if (!existingHasJogador && candidateHasJogador) {
-                    return true;
-                }
-                if (candidate.length > existing.length) {
-                    return true;
-                }
-                return false;
-            };
-            for (const segment of rawMarketSegments) {
-                // Remover parênteses com descrições genéricas (ex.: "(Mais de/Menos de)")
-                const withoutParens = segment.replace(/\([^)]*\)/g, '').trim();
-                if (!withoutParens) {
-                    continue;
-                }
-                const key = buildMarketKey(withoutParens);
-                if (!key) {
-                    continue;
-                }
-                if (!marketMap.has(key)) {
+            if (candidate.length > existing.length) {
+                return true;
+            }
+            return false;
+        };
+        for (const segment of rawMarketSegments) {
+            // Remover parênteses com descrições genéricas (ex.: "(Mais de/Menos de)")
+            const withoutParens = segment.replace(/\([^)]*\)/g, '').trim();
+            if (!withoutParens) {
+                continue;
+            }
+            const key = buildMarketKey(withoutParens);
+            if (!key) {
+                continue;
+            }
+            if (!marketMap.has(key)) {
+                marketMap.set(key, withoutParens);
+                keyOrder.push(key);
+            }
+            else {
+                const existing = marketMap.get(key);
+                if (isBetterSegment(existing, withoutParens)) {
                     marketMap.set(key, withoutParens);
-                    keyOrder.push(key);
-                }
-                else {
-                    const existing = marketMap.get(key);
-                    if (isBetterSegment(existing, withoutParens)) {
-                        marketMap.set(key, withoutParens);
-                    }
                 }
             }
-            const normalizedMarketSegments = keyOrder.map((key) => marketMap.get(key)).filter(Boolean);
-            mercadoDisplayClean =
-                normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
         }
+        const normalizedMarketSegments = keyOrder.map((key) => marketMap.get(key)).filter(Boolean);
+        const mercadoDisplayClean = normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
         // Formatar a linha de aposta priorizando o mercado detalhado quando existir
         const marketLines = extractMarketSelections(bet.mercado);
         // Se houver aposta, priorize ela na linha de aposta
@@ -954,8 +924,8 @@ const formatBetMessage = (bet, banca) => {
             const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
             const jogoLower = (bet.jogo || '').toLowerCase();
             // Focar em remover apenas descrições puras de mercado (ex.: "Recepções (Mais de/Menos de)")
-            // usando o mercado derivado do texto da aposta, para não descartar linhas com o jogador.
-            const marketText = (mercadoDerivado || '').toLowerCase();
+            // usando o próprio texto de mercado salvo, para não descartar linhas com o jogador.
+            const marketText = (mercadoBase || '').toLowerCase();
             const marketParts = marketText
                 .split(/\n+/)
                 .flatMap((part) => part.split('/'))
@@ -1002,7 +972,7 @@ const formatBetMessage = (bet, banca) => {
             let singleLine = apostaText.trim();
             // Em linhas únicas como "Recepções (Mais de/Menos de) - Devonta Smith - Under 4.5",
             // remover o prefixo que é só o rótulo de mercado para deixar o foco na seleção.
-            const marketSource = (mercadoDerivado || mercadoBase || '').toLowerCase();
+            const marketSource = (mercadoBase || '').toLowerCase();
             if (marketSource) {
                 const marketParts = marketSource
                     .split(/\n+/)

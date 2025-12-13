@@ -998,49 +998,17 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     const statusEmoji = STATUS_EMOJIS[bet.status] || '⏳';
     const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
 
-    // Mercado base calculado a partir do valor salvo e, quando fizer sentido,
-    // um mercado derivado a partir do texto da aposta.
+    // Mercado base calculado exclusivamente a partir do valor salvo.
+    // A partir de agora, NÃO derivamos mais nada do texto da aposta
+    // para o campo "mercado"; ele é tratado como fonte de verdade.
     const mercadoBase = formatMarketText(bet.mercado);
-    const mercadoDerivado = deriveMarketFromBetSelections(bet.aposta || '', bet.jogo || undefined);
 
-    // Se o mercado já vier consolidado do BilheteTracker para props de jogador
-    // (ex.: "Ressaltos + Pontos + Assistências (Jogador)"), não aplicar
-    // heurísticas adicionais em cima dele.
-    const isTrackerPlayerPropMarket =
-      typeof bet.mercado === 'string' &&
-      /\(Jogador\)/i.test(bet.mercado) &&
-      bet.mercado.includes('+');
+    // Limpar o texto final de mercado para remover ruídos como
+    // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
+    // sempre trabalhando SOMENTE em cima de bet.mercado.
+    let mercadoDisplay = mercadoBase;
 
-    let mercadoDisplayClean: string;
-
-    if (isTrackerPlayerPropMarket) {
-      mercadoDisplayClean = bet.mercado.trim();
-    } else {
-      // Construir uma visão mais rica de mercado combinando o que veio salvo com o que
-      // pode ser inferido do texto da aposta (útil para props como recepções, pontos etc.)
-      let mercadoDisplay = mercadoBase;
-      if (mercadoDerivado) {
-        if (mercadoBase === 'N/D') {
-          mercadoDisplay = mercadoDerivado;
-        } else {
-          const baseLower = mercadoBase.toLowerCase();
-          const derivLower = mercadoDerivado.toLowerCase();
-
-          const containsRelation =
-            baseLower === derivLower ||
-            baseLower.includes(derivLower) ||
-            derivLower.includes(baseLower);
-
-          if (!containsRelation) {
-            mercadoDisplay = `${mercadoBase} / ${mercadoDerivado}`;
-          }
-        }
-      }
-
-      // Limpar o texto final de mercado para remover ruídos como
-      // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
-      // priorizando versões mais específicas (ex.: "Jogador pontos" em vez de apenas "Pontos").
-      const rawMarketSegments = mercadoDisplay
+    const rawMarketSegments = mercadoDisplay
         .split(/\n+/)
         .flatMap((part) => part.split('/'))
         .map((part) => part.trim())
@@ -1104,10 +1072,8 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
       }
 
       const normalizedMarketSegments = keyOrder.map((key) => marketMap.get(key)!).filter(Boolean);
-
-      mercadoDisplayClean =
-        normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
-    }
+    const mercadoDisplayClean =
+      normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
 
     // Formatar a linha de aposta priorizando o mercado detalhado quando existir
     const marketLines = extractMarketSelections(bet.mercado);
@@ -1131,12 +1097,12 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
       const jogoLower = (bet.jogo || '').toLowerCase();
 
       // Focar em remover apenas descrições puras de mercado (ex.: "Recepções (Mais de/Menos de)")
-      // usando o mercado derivado do texto da aposta, para não descartar linhas com o jogador.
-      const marketText = (mercadoDerivado || '').toLowerCase();
+      // usando o próprio texto de mercado salvo, para não descartar linhas com o jogador.
+      const marketText = (mercadoBase || '').toLowerCase();
       const marketParts = marketText
         .split(/\n+/)
-        .flatMap((part) => part.split('/'))
-        .map((part) => part.trim())
+        .flatMap((part: string) => part.split('/'))
+        .map((part: string) => part.trim())
         .filter(Boolean);
 
       const candidateLines = lines.filter((line) => {
@@ -1164,7 +1130,7 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
           }
 
           if (
-            marketParts.some((part) => {
+            marketParts.some((part: string) => {
               const partLower = part.toLowerCase();
               if (!partLower) return false;
               // Considerar como rótulo puro apenas quando os textos são essencialmente equivalentes.
@@ -1187,12 +1153,12 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
 
       // Em linhas únicas como "Recepções (Mais de/Menos de) - Devonta Smith - Under 4.5",
       // remover o prefixo que é só o rótulo de mercado para deixar o foco na seleção.
-      const marketSource = (mercadoDerivado || mercadoBase || '').toLowerCase();
+      const marketSource = (mercadoBase || '').toLowerCase();
       if (marketSource) {
         const marketParts = marketSource
           .split(/\n+/)
-          .flatMap((part) => part.split('/'))
-          .map((part) => part.trim())
+          .flatMap((part: string) => part.split('/'))
+          .map((part: string) => part.trim())
           .filter(Boolean);
 
         for (const part of marketParts) {
