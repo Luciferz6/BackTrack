@@ -29,8 +29,11 @@ const ensureConfig = () => {
   getTelegramBotToken();
 };
 
-const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
-const BILHETE_TRACKER_SCAN_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/scan-ticket`;
+// URL do microserviço bilhete-tracker (novo pipeline).
+// Ex.: https://bilhete-tracker.onrender.com
+const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhete-tracker.onrender.com').replace(/\/$/, '');
+// Endpoint HTTP do novo serviço para processar bilhetes a partir de URL de imagem.
+const BILHETE_TRACKER_PROCESS_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/process-image`;
 const BILHETE_TRACKER_TIMEOUT_MS = parseInt(process.env.BILHETE_TRACKER_TIMEOUT_MS || '60000', 10);
 
 type BilheteTrackerTicket = {
@@ -73,6 +76,23 @@ type NormalizedTicketData = {
   aposta?: string | string[];
 };
 
+// Estrutura mínima esperada do bilhete final retornado pelo
+// novo pipeline bilhete-tracker.
+type BilheteFinalFromTracker = {
+  esporte: string | null;
+  torneio: string | null;
+  evento: string | null;
+  aposta: string;
+  mercado: string;
+  valorApostado: number | null;
+  odd: number | null;
+  retornoPotencial: number | null;
+  tipo: 'Simples' | 'Multipla' | 'Pré' | 'Ao vivo' | null;
+  data: string | null;
+  bonus: number | null;
+  apostasDetalhadas: unknown[];
+};
+
 const normalizeDateValue = (raw?: string | null): string => {
   if (!raw) return '';
   const value = raw.trim();
@@ -109,33 +129,52 @@ const normalizeBilheteTrackerTicket = (ticket: BilheteTrackerTicket): Normalized
   aposta: (ticket.aposta as any) ?? ticket.apostaDetalhada ?? ''
 });
 
-const processTicketViaBilheteTracker = async (base64Image: string, mimeType: string, ocrText?: string) => {
+const normalizeBilheteFinalFromNewPipeline = (ticket: BilheteFinalFromTracker): NormalizedTicketData => ({
+  casaDeAposta: '',
+  tipster: '',
+  esporte: normalizarEsporteParaOpcao(ticket.esporte || '') || (ticket.esporte || ''),
+  jogo: ticket.evento || '',
+  torneio: ticket.torneio || '',
+  pais: 'Mundo',
+  mercado: ticket.mercado || '',
+  tipoAposta: ticket.tipo || 'Simples',
+  valorApostado: ticket.valorApostado ?? 0,
+  odd: ticket.odd ?? 0,
+  dataJogo: normalizeDateValue(ticket.data),
+  status: 'Pendente',
+  aposta: ticket.aposta || ''
+});
+
+// Implementação usando o microserviço bilhete-tracker externo.
+// Envia apenas a URL pública do arquivo hospedado no Telegram;
+// o serviço bilhete-tracker se encarrega de chamar OCR.space,
+// Groq e aplicar o pipeline completo.
+const processTicketViaBilheteTracker = async (
+  _base64Image: string,
+  _mimeType: string,
+  filePath: string
+) => {
+  const token = getTelegramBotToken();
+  const imageUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
+
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), BILHETE_TRACKER_TIMEOUT_MS);
 
   try {
-    const payload = {
-      image: `data:${mimeType};base64,${base64Image}`,
-      ...(ocrText?.trim() ? { ocrText } : {})
-    };
-
-    const response = await fetch(BILHETE_TRACKER_SCAN_ENDPOINT, {
+    const response = await fetch(BILHETE_TRACKER_PROCESS_ENDPOINT, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
+      body: JSON.stringify({ imageUrl }),
       signal: controller.signal
     });
 
-    const data = (await response.json().catch(() => {
-      throw new Error('Resposta inválida do serviço de bilhetes');
-    })) as BilheteTrackerResponse;
-
-    if (!response.ok || !data?.success || !data.ticket) {
-      const message = data?.error || data?.message || `Serviço de bilhetes retornou status ${response.status}`;
-      throw new Error(message);
+    if (!response.ok) {
+      const text = await response.text().catch(() => '');
+      throw new Error(`bilhete-tracker retornou status ${response.status}: ${text}`);
     }
 
-    return normalizeBilheteTrackerTicket(data.ticket);
+    const bilheteFinal = (await response.json()) as BilheteFinalFromTracker;
+    return normalizeBilheteFinalFromNewPipeline(bilheteFinal);
   } finally {
     clearTimeout(timeout);
   }
@@ -2138,7 +2177,11 @@ router.post('/webhook', async (req, res) => {
 
         let normalizedData: NormalizedTicketData;
         try {
-          normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
+          if (!filePath) {
+            throw new Error('Caminho de arquivo do Telegram não encontrado');
+          }
+
+          normalizedData = await processTicketViaBilheteTracker(base64, mimeType, filePath);
         } catch (serviceError) {
           log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo');
 
