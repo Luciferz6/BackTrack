@@ -147,17 +147,17 @@ router.post('/', authenticateToken, async (req: AuthRequest, res) => {
     // Tipster:
     // 1) Se vier preenchido na requisição, usa o valor informado.
     // 2) Se vier vazio, usar o mesmo critério do fluxo do Telegram:
-    //    - Primeiro tentar o telegramUsername salvo na conta;
-    //    - Senão, usar o primeiro nome derivado de nomeCompleto.
+    //    - Primeiro tentar o apelido do usuário no site (nomeCompleto);
+    //    - Senão, usar o telegramUsername salvo na conta.
     let tipster = (data.tipster || '').trim();
     if (!tipster) {
-      const userTelegramUsername = (banca.usuario.telegramUsername || '').trim();
-      if (userTelegramUsername) {
-        tipster = userTelegramUsername;
+      const nickname = (banca.usuario.nomeCompleto || '').trim();
+      if (nickname) {
+        tipster = nickname;
       } else {
-        const fullName = (banca.usuario.nomeCompleto || '').trim();
-        if (fullName) {
-          tipster = fullName.split(' ')[0] || fullName;
+        const userTelegramUsername = (banca.usuario.telegramUsername || '').trim();
+        if (userTelegramUsername) {
+          tipster = userTelegramUsername;
         }
       }
     }
