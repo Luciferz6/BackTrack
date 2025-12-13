@@ -998,100 +998,116 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
     const statusEmoji = STATUS_EMOJIS[bet.status] || '⏳';
     const statusText = `${statusEmoji} Status: ${bet.status || 'Pendente'}`;
 
-    // Construir uma visão mais rica de mercado combinando o que veio salvo com o que
-    // pode ser inferido do texto da aposta (útil para props como recepções, pontos etc.)
+    // Mercado base calculado a partir do valor salvo e, quando fizer sentido,
+    // um mercado derivado a partir do texto da aposta.
     const mercadoBase = formatMarketText(bet.mercado);
     const mercadoDerivado = deriveMarketFromBetSelections(bet.aposta || '', bet.jogo || undefined);
 
-    let mercadoDisplay = mercadoBase;
-    if (mercadoDerivado) {
-      if (mercadoBase === 'N/D') {
-        mercadoDisplay = mercadoDerivado;
-      } else {
-        const baseLower = mercadoBase.toLowerCase();
-        const derivLower = mercadoDerivado.toLowerCase();
+    // Se o mercado já vier consolidado do BilheteTracker para props de jogador
+    // (ex.: "Ressaltos + Pontos + Assistências (Jogador)"), não aplicar
+    // heurísticas adicionais em cima dele.
+    const isTrackerPlayerPropMarket =
+      typeof bet.mercado === 'string' &&
+      /\(Jogador\)/i.test(bet.mercado) &&
+      bet.mercado.includes('+');
 
-        const containsRelation =
-          baseLower === derivLower ||
-          baseLower.includes(derivLower) ||
-          derivLower.includes(baseLower);
+    let mercadoDisplayClean: string;
 
-        if (!containsRelation) {
-          mercadoDisplay = `${mercadoBase} / ${mercadoDerivado}`;
+    if (isTrackerPlayerPropMarket) {
+      mercadoDisplayClean = bet.mercado.trim();
+    } else {
+      // Construir uma visão mais rica de mercado combinando o que veio salvo com o que
+      // pode ser inferido do texto da aposta (útil para props como recepções, pontos etc.)
+      let mercadoDisplay = mercadoBase;
+      if (mercadoDerivado) {
+        if (mercadoBase === 'N/D') {
+          mercadoDisplay = mercadoDerivado;
+        } else {
+          const baseLower = mercadoBase.toLowerCase();
+          const derivLower = mercadoDerivado.toLowerCase();
+
+          const containsRelation =
+            baseLower === derivLower ||
+            baseLower.includes(derivLower) ||
+            derivLower.includes(baseLower);
+
+          if (!containsRelation) {
+            mercadoDisplay = `${mercadoBase} / ${mercadoDerivado}`;
+          }
         }
       }
-    }
 
-    // Limpar o texto final de mercado para remover ruídos como
-    // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
-    // priorizando versões mais específicas (ex.: "Jogador pontos" em vez de apenas "Pontos").
-    const rawMarketSegments = mercadoDisplay
-      .split(/\n+/)
-      .flatMap((part) => part.split('/'))
-      .map((part) => part.trim())
-      .filter(Boolean);
+      // Limpar o texto final de mercado para remover ruídos como
+      // "(Mais de/Menos de)" e duplicatas como "Rebotes" / "Mais de Rebotes",
+      // priorizando versões mais específicas (ex.: "Jogador pontos" em vez de apenas "Pontos").
+      const rawMarketSegments = mercadoDisplay
+        .split(/\n+/)
+        .flatMap((part) => part.split('/'))
+        .map((part) => part.trim())
+        .filter(Boolean);
 
-    const marketMap = new Map<string, string>();
-    const keyOrder: string[] = [];
+      const marketMap = new Map<string, string>();
+      const keyOrder: string[] = [];
 
-    const buildMarketKey = (text: string): string => {
-      return text
-        .toLowerCase()
-        // ignorar palavras genéricas de direção/escala
-        .replace(/\b(mais|menos)\b/gi, '')
-        // ignorar preposições simples
-        .replace(/\b(de|do|da|das|dos)\b/gi, '')
-        // ignorar prefixo "jogador" para que "Pontos" e "Jogador pontos" colapsem
-        .replace(/\bjogador\b/gi, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    };
+      const buildMarketKey = (text: string): string => {
+        return text
+          .toLowerCase()
+          // ignorar palavras genéricas de direção/escala
+          .replace(/\b(mais|menos)\b/gi, '')
+          // ignorar preposições simples
+          .replace(/\b(de|do|da|das|dos)\b/gi, '')
+          // ignorar prefixo "jogador" para que "Pontos" e "Jogador pontos" colapsem
+          .replace(/\bjogador\b/gi, '')
+          .replace(/\s+/g, ' ')
+          .trim();
+      };
 
-    const isBetterSegment = (existing: string, candidate: string): boolean => {
-      const existingLower = existing.toLowerCase();
-      const candidateLower = candidate.toLowerCase();
+      const isBetterSegment = (existing: string, candidate: string): boolean => {
+        const existingLower = existing.toLowerCase();
+        const candidateLower = candidate.toLowerCase();
 
-      const existingHasJogador = existingLower.includes('jogador');
-      const candidateHasJogador = candidateLower.includes('jogador');
+        const existingHasJogador = existingLower.includes('jogador');
+        const candidateHasJogador = candidateLower.includes('jogador');
 
-      if (!existingHasJogador && candidateHasJogador) {
-        return true;
-      }
+        if (!existingHasJogador && candidateHasJogador) {
+          return true;
+        }
 
-      if (candidate.length > existing.length) {
-        return true;
-      }
+        if (candidate.length > existing.length) {
+          return true;
+        }
 
-      return false;
-    };
+        return false;
+      };
 
-    for (const segment of rawMarketSegments) {
-      // Remover parênteses com descrições genéricas (ex.: "(Mais de/Menos de)")
-      const withoutParens = segment.replace(/\([^)]*\)/g, '').trim();
-      if (!withoutParens) {
-        continue;
-      }
+      for (const segment of rawMarketSegments) {
+        // Remover parênteses com descrições genéricas (ex.: "(Mais de/Menos de)")
+        const withoutParens = segment.replace(/\([^)]*\)/g, '').trim();
+        if (!withoutParens) {
+          continue;
+        }
 
-      const key = buildMarketKey(withoutParens);
-      if (!key) {
-        continue;
-      }
+        const key = buildMarketKey(withoutParens);
+        if (!key) {
+          continue;
+        }
 
-      if (!marketMap.has(key)) {
-        marketMap.set(key, withoutParens);
-        keyOrder.push(key);
-      } else {
-        const existing = marketMap.get(key)!;
-        if (isBetterSegment(existing, withoutParens)) {
+        if (!marketMap.has(key)) {
           marketMap.set(key, withoutParens);
+          keyOrder.push(key);
+        } else {
+          const existing = marketMap.get(key)!;
+          if (isBetterSegment(existing, withoutParens)) {
+            marketMap.set(key, withoutParens);
+          }
         }
       }
+
+      const normalizedMarketSegments = keyOrder.map((key) => marketMap.get(key)!).filter(Boolean);
+
+      mercadoDisplayClean =
+        normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
     }
-
-    const normalizedMarketSegments = keyOrder.map((key) => marketMap.get(key)!).filter(Boolean);
-
-    const mercadoDisplayClean =
-      normalizedMarketSegments.length > 0 ? normalizedMarketSegments.join(' / ') : mercadoDisplay;
 
     // Formatar a linha de aposta priorizando o mercado detalhado quando existir
     const marketLines = extractMarketSelections(bet.mercado);
@@ -2242,7 +2258,10 @@ router.post('/webhook', async (req, res) => {
           : normalizedData.jogo;
         const dataJogo = normalizedData.dataJogo ? new Date(normalizedData.dataJogo) : new Date();
 
-        let mercadoParaSalvar = formatMarketText(mercadoNormalizado);
+        // Para bilhetes vindos do bilhete-tracker, confiamos primeiro
+        // no mercado já consolidado pelo pipeline externo. Apenas se
+        // ele vier vazio/N/D é que tentamos derivar algo do texto da aposta.
+        let mercadoParaSalvar = mercadoNormalizado || 'N/D';
         if (mercadoParaSalvar === 'N/D') {
           const mercadoDerivado = deriveMarketFromBetSelections(apostaNormalizada, jogo);
           if (mercadoDerivado) {

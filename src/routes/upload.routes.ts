@@ -146,8 +146,9 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
     const filePath = path.join(uploadDir, filename);
     await fs.promises.writeFile(filePath, processedBuffer);
 
-    // Montar URL pública com base na URL do backend (FRONTEND_URL ou BACKEND_URL)
-    let baseUrl = process.env.FRONTEND_URL || process.env.BACKEND_URL || '';
+    // Montar URL pública com base na URL do backend (BACKEND_URL ou FRONTEND_URL)
+    // PRIORIDADE: usamos BACKEND_URL primeiro porque é o host que realmente serve /uploads
+    let baseUrl = process.env.BACKEND_URL || process.env.FRONTEND_URL || '';
     if (!baseUrl) {
       // Fallback local
       baseUrl = `http://localhost:${process.env.PORT || 3001}`;
