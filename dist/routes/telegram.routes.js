@@ -967,6 +967,16 @@ const formatBetMessage = (bet, banca) => {
         }
         else {
             let singleLine = apostaText.trim();
+            // Caso específico de Mega Cotações do tipo
+            // "Cada time bate 4+ escanteios e cada time recebe 1+ cartões".
+            // Para deixar mais legível no Telegram, separamos em duas
+            // partes com barra em vez de manter o "e cada" no meio.
+            const megaTeamTotalsMatch = singleLine.match(/^(Cada\s+time\s+bate[^e]*escanteios)\s+e\s+(cada\s+time\s+recebe[^\n]*cart[aã]os)/i);
+            if (megaTeamTotalsMatch) {
+                const primeiraParte = megaTeamTotalsMatch[1].trim();
+                const segundaParte = megaTeamTotalsMatch[2].trim();
+                singleLine = `${primeiraParte} / ${segundaParte}`;
+            }
             // Em linhas únicas como "Recepções (Mais de/Menos de) - Devonta Smith - Under 4.5",
             // remover o prefixo que é só o rótulo de mercado para deixar o foco na seleção.
             const marketSource = (mercadoDerivado || mercadoBase || '').toLowerCase();
@@ -1848,19 +1858,19 @@ router.post('/webhook', async (req, res) => {
                 // Tipster:
                 // 1) Se o usuário informar na legenda do Telegram (segunda linha), usar esse valor.
                 // 2) Caso contrário, usar o tipster vindo do BilheteTracker (se existir).
-                // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site:
-                //    - Primeiro tentar o telegramUsername salvo na conta.
-                //    - Se não houver, usar o primeiro nome do usuário (derivado de nomeCompleto).
+                // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site
+                //    (campo "Apelido" da tela de perfil, mapeado em nomeCompleto).
+                // 4) Como último recurso, usar o telegramUsername salvo na conta.
                 let tipster = (tipsterFromCaption || normalizedData.tipster || '').trim();
                 if (!tipster) {
-                    const userTelegramUsername = (user.telegramUsername || '').trim();
-                    if (userTelegramUsername) {
-                        tipster = userTelegramUsername;
+                    const nickname = (user.nomeCompleto || '').trim();
+                    if (nickname) {
+                        tipster = nickname;
                     }
                     else {
-                        const fullName = (user.nomeCompleto || '').trim();
-                        if (fullName) {
-                            tipster = fullName.split(' ')[0] || fullName;
+                        const userTelegramUsername = (user.telegramUsername || '').trim();
+                        if (userTelegramUsername) {
+                            tipster = userTelegramUsername;
                         }
                     }
                 }
