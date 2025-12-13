@@ -1,1 +1,1 @@
-{"version":3,"file":"aposta.routes.d.ts","sourceRoot":"","sources":["../../src/routes/aposta.routes.ts"],"names":[],"mappings":"AAYA,QAAA,MAAM,MAAM,4CAAmB,CAAC;AA4tBhC,eAAe,MAAM,CAAC"}
+{"version":3,"file":"aposta.routes.d.ts","sourceRoot":"","sources":["../../src/routes/aposta.routes.ts"],"names":[],"mappings":"AAAA,OAAO,OAAO,MAAM,SAAS,CAAC;AAY9B,QAAA,MAAM,MAAM,EAAE,OAAO,CAAC,MAAyB,CAAC;AA4tBhD,eAAe,MAAM,CAAC"}

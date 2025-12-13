@@ -22,8 +22,11 @@ const getSupportBotToken = () => {
 const ensureConfig = () => {
     getTelegramBotToken();
 };
-const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
-const BILHETE_TRACKER_SCAN_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/scan-ticket`;
+// URL do microserviço bilhete-tracker (novo pipeline).
+// Ex.: https://bilhete-tracker.onrender.com
+const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhete-tracker.onrender.com').replace(/\/$/, '');
+// Endpoint HTTP do novo serviço para processar bilhetes a partir de URL de imagem.
+const BILHETE_TRACKER_PROCESS_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/process-image`;
 const BILHETE_TRACKER_TIMEOUT_MS = parseInt(process.env.BILHETE_TRACKER_TIMEOUT_MS || '60000', 10);
 const normalizeDateValue = (raw) => {
     if (!raw)
@@ -58,28 +61,43 @@ const normalizeBilheteTrackerTicket = (ticket) => ({
     status: ticket.status || 'Pendente',
     aposta: ticket.aposta ?? ticket.apostaDetalhada ?? ''
 });
-const processTicketViaBilheteTracker = async (base64Image, mimeType, ocrText) => {
+const normalizeBilheteFinalFromNewPipeline = (ticket) => ({
+    casaDeAposta: '',
+    tipster: '',
+    esporte: normalizarEsporteParaOpcao(ticket.esporte || '') || (ticket.esporte || ''),
+    jogo: ticket.evento || '',
+    torneio: ticket.torneio || '',
+    pais: 'Mundo',
+    mercado: ticket.mercado || '',
+    tipoAposta: ticket.tipo || 'Simples',
+    valorApostado: ticket.valorApostado ?? 0,
+    odd: ticket.odd ?? 0,
+    dataJogo: normalizeDateValue(ticket.data),
+    status: 'Pendente',
+    aposta: ticket.aposta || ''
+});
+// Implementação usando o microserviço bilhete-tracker externo.
+// Envia apenas a URL pública do arquivo hospedado no Telegram;
+// o serviço bilhete-tracker se encarrega de chamar OCR.space,
+// Groq e aplicar o pipeline completo.
+const processTicketViaBilheteTracker = async (_base64Image, _mimeType, filePath) => {
+    const token = getTelegramBotToken();
+    const imageUrl = `https://api.telegram.org/file/bot${token}/${filePath}`;
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), BILHETE_TRACKER_TIMEOUT_MS);
     try {
-        const payload = {
-            image: `data:${mimeType};base64,${base64Image}`,
-            ...(ocrText?.trim() ? { ocrText } : {})
-        };
-        const response = await fetch(BILHETE_TRACKER_SCAN_ENDPOINT, {
+        const response = await fetch(BILHETE_TRACKER_PROCESS_ENDPOINT, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify({ imageUrl }),
             signal: controller.signal
         });
-        const data = (await response.json().catch(() => {
-            throw new Error('Resposta inválida do serviço de bilhetes');
-        }));
-        if (!response.ok || !data?.success || !data.ticket) {
-            const message = data?.error || data?.message || `Serviço de bilhetes retornou status ${response.status}`;
-            throw new Error(message);
+        if (!response.ok) {
+            const text = await response.text().catch(() => '');
+            throw new Error(`bilhete-tracker retornou status ${response.status}: ${text}`);
         }
-        return normalizeBilheteTrackerTicket(data.ticket);
+        const bilheteFinal = (await response.json());
+        return normalizeBilheteFinalFromNewPipeline(bilheteFinal);
     }
     finally {
         clearTimeout(timeout);
@@ -736,33 +754,6 @@ const STATUS_EMOJIS = {
     Cashout: '💰',
     Void: '⚪️'
 };
-const formatMegaTeamTotalsBet = (apostaText) => {
-    if (!apostaText) {
-        return apostaText;
-    }
-    const segments = apostaText
-        .split(/\n+/)
-        .flatMap((part) => part.split('/'))
-        .map((part) => part.trim())
-        .filter(Boolean);
-    let escanteiosSegment = null;
-    let cartoesSegment = null;
-    for (const segment of segments) {
-        const lower = segment.toLowerCase();
-        if (!escanteiosSegment && /escanteio/i.test(lower) && /cada\s+time\s+bate/i.test(lower)) {
-            escanteiosSegment = segment.trim();
-            continue;
-        }
-        if (!cartoesSegment && /cart[aã]o|cart[õo]es/i.test(lower) && /cada\s+time\s+recebe/i.test(lower)) {
-            cartoesSegment = segment.trim();
-            continue;
-        }
-    }
-    if (escanteiosSegment && cartoesSegment) {
-        return `${escanteiosSegment} / ${cartoesSegment}`;
-    }
-    return apostaText;
-};
 const formatBetMessage = (bet, banca) => {
     let esporteFormatado = normalizarEsporteParaOpcao(bet.esporte || '') || bet.esporte || '';
     try {
@@ -943,9 +934,6 @@ const formatBetMessage = (bet, banca) => {
         else {
             apostaText = bet.jogo || 'N/D';
         }
-        // Caso especial Mega Cotações: garantir que escanteios + cartões apareçam
-        // juntos em uma única linha com barra, mesmo que venham separados.
-        apostaText = formatMegaTeamTotalsBet(apostaText);
         let apostaLine;
         if (apostaText.includes('\n')) {
             const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
@@ -1859,7 +1847,10 @@ router.post('/webhook', async (req, res) => {
                 }
                 let normalizedData;
                 try {
-                    normalizedData = await processTicketViaBilheteTracker(base64, mimeType);
+                    if (!filePath) {
+                        throw new Error('Caminho de arquivo do Telegram não encontrado');
+                    }
+                    normalizedData = await processTicketViaBilheteTracker(base64, mimeType, filePath);
                 }
                 catch (serviceError) {
                     log.error({ error: serviceError }, 'Falha ao processar bilhete via serviço externo');
@@ -1878,19 +1869,19 @@ router.post('/webhook', async (req, res) => {
                 // Tipster:
                 // 1) Se o usuário informar na legenda do Telegram (segunda linha), usar esse valor.
                 // 2) Caso contrário, usar o tipster vindo do BilheteTracker (se existir).
-                // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site
-                //    (campo "Apelido" da tela de perfil, mapeado em nomeCompleto).
-                // 4) Como último recurso, usar o telegramUsername salvo na conta.
+                // 3) Se ainda assim estiver vazio, preencher com o apelido do usuário no site:
+                //    - Primeiro tentar o telegramUsername salvo na conta.
+                //    - Se não houver, usar o primeiro nome do usuário (derivado de nomeCompleto).
                 let tipster = (tipsterFromCaption || normalizedData.tipster || '').trim();
                 if (!tipster) {
-                    const nickname = (user.nomeCompleto || '').trim();
-                    if (nickname) {
-                        tipster = nickname;
+                    const userTelegramUsername = (user.telegramUsername || '').trim();
+                    if (userTelegramUsername) {
+                        tipster = userTelegramUsername;
                     }
                     else {
-                        const userTelegramUsername = (user.telegramUsername || '').trim();
-                        if (userTelegramUsername) {
-                            tipster = userTelegramUsername;
+                        const fullName = (user.nomeCompleto || '').trim();
+                        if (fullName) {
+                            tipster = fullName.split(' ')[0] || fullName;
                         }
                     }
                 }

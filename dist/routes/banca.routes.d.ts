@@ -1,5 +1,6 @@
+import express from 'express';
 import { z } from 'zod';
-declare const router: import("express-serve-static-core").Router;
+declare const router: express.Router;
 export declare const createBancaSchema: z.ZodEffects<z.ZodObject<{
     nome: z.ZodString;
     descricao: z.ZodOptional<z.ZodString>;

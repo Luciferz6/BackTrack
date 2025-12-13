@@ -8,7 +8,7 @@ import { log } from '../utils/logger.js';
 import { ensureActivePlan } from '../utils/planManager.js';
 // Removido uso de cache Redis
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 // Schemas necessários
 const updateProfileSchema = z.object({

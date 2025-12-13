@@ -6,7 +6,7 @@ import { calcularResultadoAposta, isApostaConcluida } from '../utils/betCalculat
 import { handleRouteError } from '../utils/errorHandler.js';
 import { log } from '../utils/logger.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 const saldoInicialSchema = z
   .preprocess((value) => {

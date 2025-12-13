@@ -7,7 +7,7 @@ import { sensitiveRateLimiter } from '../middleware/rateLimiter.js';
 import { log } from '../utils/logger.js';
 import { handleRouteError } from '../utils/errorHandler.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 const registerSchema = z.object({
   nomeCompleto: z.string().min(3).max(100, 'Nome muito longo'),

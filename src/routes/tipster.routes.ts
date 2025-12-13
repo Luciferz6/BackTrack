@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { authenticateToken, AuthRequest } from '../middleware/auth.middleware.js';
 import { log } from '../utils/logger.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 // Schema de validação
 const createTipsterSchema = z.object({

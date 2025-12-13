@@ -16,5 +16,12 @@
     "sourceMap": true
   },
   "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    // Rota antiga que importava diretamente o pacote bilhete-tracker.
+    // O fluxo atual usa o microserviço HTTP via BILHETE_TRACKER_URL,
+    // então este arquivo não precisa ser compilado.
+    "src/routes/bilheteTracker.routes.ts"
+  ]
 }

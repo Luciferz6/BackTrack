@@ -10,7 +10,7 @@ import { handleRouteError } from '../utils/errorHandler.js';
 // pelo menos uma vez antes de usar esta rota em produção.
 import { processBilheteFromImageUrl } from '../../../bilhete-tracker/dist/index.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 const processBilheteSchema = z.object({
   imageUrl: z.string().url('URL de imagem inválida'),

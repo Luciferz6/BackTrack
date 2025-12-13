@@ -3,14 +3,14 @@ import multer from 'multer';
 import sharp from 'sharp';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import FormData from 'form-data';
+import fs from 'fs';
 import fetch from 'node-fetch';
 import { authenticate } from '../middleware/auth.js';
 import { prisma } from '../lib/prisma.js';
 import { log } from '../utils/logger.js';
 const router = express.Router();
-const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhetetracker.onrender.com').replace(/\/$/, '');
-const BILHETE_TRACKER_UPLOAD_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/scan-ticket/upload`;
+const BILHETE_TRACKER_BASE = (process.env.BILHETE_TRACKER_URL || 'https://bilhete-tracker.onrender.com').replace(/\/$/, '');
+const BILHETE_TRACKER_PROCESS_ENDPOINT = `${BILHETE_TRACKER_BASE}/api/process-image`;
 // Obter __dirname em ES modules
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -72,17 +72,14 @@ router.post('/perfil', authenticate, upload.single('foto'), async (req, res) => 
         res.status(500).json({ error: 'Erro ao processar imagem' });
     }
 });
-// POST /api/upload/bilhete - Processar bilhete usando IA
+// POST /api/upload/bilhete - Processar bilhete usando o microserviço bilhete-tracker
 router.post('/bilhete', authenticate, upload.single('image'), async (req, res) => {
     let abortTimeout = null;
     try {
         if (!req.file) {
             return res.status(400).json({ success: false, error: 'Nenhuma imagem enviada' });
         }
-        const ocrText = typeof req.body?.ocrText === 'string' ? req.body.ocrText : undefined;
         let processedBuffer = req.file.buffer;
-        let processedMime = req.file.mimetype;
-        let processedFilename = req.file.originalname || `bilhete-${Date.now()}`;
         try {
             const optimized = await sharp(req.file.buffer)
                 .rotate()
@@ -99,19 +96,11 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
                 optimizedSize: optimized.length,
             }, 'Imagem de bilhete otimizada para upload');
             processedBuffer = optimized;
-            processedMime = 'image/webp';
-            processedFilename = `${processedFilename.replace(/\.[^/.]+$/, '')}.webp`;
+            // Mantém o MIME interno apenas para otimização local; o bilhete-tracker
+            // será chamado por URL, não por upload de arquivo.
         }
         catch (imageError) {
             log.warn({ err: imageError }, 'Falha ao otimizar imagem de bilhete, seguindo com buffer original');
-        }
-        const formData = new FormData();
-        formData.append('image', processedBuffer, {
-            filename: processedFilename || `bilhete-${Date.now()}.webp`,
-            contentType: processedMime,
-        });
-        if (ocrText) {
-            formData.append('ocrText', ocrText);
         }
         const controller = new AbortController();
         abortTimeout = setTimeout(() => controller.abort(), 90_000); // 90s timeout para evitar requests presos
@@ -120,10 +109,26 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
                 controller.abort();
             }
         });
-        const response = await fetch(BILHETE_TRACKER_UPLOAD_ENDPOINT, {
+        // Salvar imagem otimizada em disco para gerar uma URL acessível ao bilhete-tracker
+        const uploadDir = path.join(__dirname, '..', '..', 'uploads', 'tickets');
+        await fs.promises.mkdir(uploadDir, { recursive: true });
+        const filename = `bilhete-${Date.now()}.webp`;
+        const filePath = path.join(uploadDir, filename);
+        await fs.promises.writeFile(filePath, processedBuffer);
+        // Montar URL pública com base na URL do backend (FRONTEND_URL ou BACKEND_URL)
+        let baseUrl = process.env.FRONTEND_URL || process.env.BACKEND_URL || '';
+        if (!baseUrl) {
+            // Fallback local
+            baseUrl = `http://localhost:${process.env.PORT || 3001}`;
+        }
+        if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+            baseUrl = `https://${baseUrl}`;
+        }
+        const imageUrl = `${baseUrl.replace(/\/$/, '')}/uploads/tickets/${filename}`;
+        const response = await fetch(BILHETE_TRACKER_PROCESS_ENDPOINT, {
             method: 'POST',
-            body: formData,
-            headers: formData.getHeaders(),
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ imageUrl }),
             signal: controller.signal,
         });
         const payload = (await response
@@ -136,14 +141,9 @@ router.post('/bilhete', authenticate, upload.single('image'), async (req, res) =
             log.warn({ status: response.status }, 'Falha ao processar bilhete via serviço externo');
             return res.status(response.status).json({ success: false, error: message });
         }
-        log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via serviço externo');
-        // Map BilheteTracker response format (ticket) to frontend format (data)
-        const frontendResponse = {
-            success: payload.success,
-            data: payload.ticket, // BilheteTracker returns 'ticket', frontend expects 'data'
-            message: payload.message
-        };
-        return res.json(frontendResponse);
+        log.info({ userId: req.user?.userId }, 'Bilhete processado com sucesso via bilhete-tracker');
+        // O bilhete-tracker retorna diretamente o BilheteFinal (sem wrapper success/data)
+        return res.json({ success: true, data: payload, message: payload.message });
     }
     catch (error) {
         log.error({ err: error }, 'Erro ao processar bilhete via upload');

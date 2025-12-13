@@ -5,7 +5,7 @@ import { z } from 'zod';
 import { calcularResultadoAposta, isApostaConcluida } from '../utils/betCalculations.js';
 // ...existing code...
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 const dateStringSchema = z.string().refine((value) => {
   if (!value) return true;

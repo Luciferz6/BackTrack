@@ -5,7 +5,7 @@ import { calcularResultadoAposta, isApostaConcluida, isApostaGanha } from '../ut
 import { buildBetWhere } from '../utils/buildBetWhere.js';
 import { handleRouteError } from '../utils/errorHandler.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 // GET /api/analise/dashboard - Calcular métricas do dashboard
 router.get('/dashboard', authenticateToken, async (req: AuthRequest, res) => {

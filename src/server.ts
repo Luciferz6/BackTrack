@@ -14,7 +14,9 @@ import perfilRoutes from './routes/perfil.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import tipsterRoutes from './routes/tipster.routes.js';
 import telegramRoutes from './routes/telegram.routes.js';
-import bilheteTrackerRoutes from './routes/bilheteTracker.routes.js';
+// Rota antiga que chamava o bilhete-tracker via import direto.
+// Mantida apenas como referência; não é mais registrada no servidor.
+// import bilheteTrackerRoutes from './routes/bilheteTracker.routes.js';
 
 dotenv.config();
 
@@ -75,8 +77,7 @@ app.get('/info', (req, res) => {
       perfil: '/api/perfil',
       upload: '/api/upload',
       tipsters: '/api/tipsters',
-      telegram: '/api/telegram',
-      bilheteTracker: '/api/bilhetes'
+      telegram: '/api/telegram'
     }
   });
 });
@@ -91,7 +92,6 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/tipsters', tipsterRoutes);
 app.use('/api/telegram', telegramRoutes);
-app.use('/api/bilhetes', bilheteTrackerRoutes);
 
 // Health check
 app.get('/health', (req, res) => {

@@ -1,1 +1,1 @@
-{"version":3,"file":"financeiro.routes.d.ts","sourceRoot":"","sources":["../../src/routes/financeiro.routes.ts"],"names":[],"mappings":"AAOA,QAAA,MAAM,MAAM,4CAAmB,CAAC;AAmShC,eAAe,MAAM,CAAC"}
+{"version":3,"file":"financeiro.routes.d.ts","sourceRoot":"","sources":["../../src/routes/financeiro.routes.ts"],"names":[],"mappings":"AAAA,OAAO,OAAO,MAAM,SAAS,CAAC;AAO9B,QAAA,MAAM,MAAM,EAAE,OAAO,CAAC,MAAyB,CAAC;AAmShD,eAAe,MAAM,CAAC"}

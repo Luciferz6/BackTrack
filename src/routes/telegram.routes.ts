@@ -8,7 +8,7 @@ import { log } from '../utils/logger.js';
 import { betUpdateRateLimiter } from '../middleware/rateLimiter.js';
 import { normalizarEsporteParaOpcao } from '../utils/esportes.js';
 
-const router = express.Router();
+const router: express.Router = express.Router();
 
 config();
 

@@ -14,6 +14,9 @@ import perfilRoutes from './routes/perfil.routes.js';
 import uploadRoutes from './routes/upload.routes.js';
 import tipsterRoutes from './routes/tipster.routes.js';
 import telegramRoutes from './routes/telegram.routes.js';
+// Rota antiga que chamava o bilhete-tracker via import direto.
+// Mantida apenas como referência; não é mais registrada no servidor.
+// import bilheteTrackerRoutes from './routes/bilheteTracker.routes.js';
 dotenv.config();
 const app = express();
 // Configurar trust proxy para funcionar corretamente com rate limiting em ambientes com proxy/load balancer
