@@ -873,6 +873,41 @@ const STATUS_EMOJIS: Record<string, string> = {
   Void: '⚪️'
 };
 
+const formatMegaTeamTotalsBet = (apostaText: string): string => {
+  if (!apostaText) {
+    return apostaText;
+  }
+
+  const segments = apostaText
+    .split(/\n+/)
+    .flatMap((part) => part.split('/'))
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  let escanteiosSegment: string | null = null;
+  let cartoesSegment: string | null = null;
+
+  for (const segment of segments) {
+    const lower = segment.toLowerCase();
+
+    if (!escanteiosSegment && /escanteio/i.test(lower) && /cada\s+time\s+bate/i.test(lower)) {
+      escanteiosSegment = segment.trim();
+      continue;
+    }
+
+    if (!cartoesSegment && /cart[aã]o|cart[õo]es/i.test(lower) && /cada\s+time\s+recebe/i.test(lower)) {
+      cartoesSegment = segment.trim();
+      continue;
+    }
+  }
+
+  if (escanteiosSegment && cartoesSegment) {
+    return `${escanteiosSegment} / ${cartoesSegment}`;
+  }
+
+  return apostaText;
+};
+
 const formatBetMessage = (bet: Bet, banca: Bankroll) => {
   let esporteFormatado = normalizarEsporteParaOpcao(bet.esporte || '') || bet.esporte || '';
   try {
@@ -1069,6 +1104,10 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
       apostaText = bet.jogo || 'N/D';
     }
 
+    // Caso especial Mega Cotações: garantir que escanteios + cartões apareçam
+    // juntos em uma única linha com barra, mesmo que venham separados.
+    apostaText = formatMegaTeamTotalsBet(apostaText);
+
     let apostaLine: string;
     if (apostaText.includes('\n')) {
       const lines = apostaText.split(/\n+/).map((line) => line.trim()).filter(Boolean);
@@ -1129,17 +1168,6 @@ const formatBetMessage = (bet: Bet, banca: Bankroll) => {
       apostaLine = `🎰 Aposta: ${primaryLine}${remaining}`;
     } else {
       let singleLine = apostaText.trim();
-
-      // Caso específico de Mega Cotações do tipo
-      // "Cada time bate 4+ escanteios e cada time recebe 1+ cartões".
-      // Para deixar mais legível no Telegram, separamos em duas
-      // partes com barra em vez de manter o "e cada" no meio.
-      const megaTeamTotalsMatch = singleLine.match(/^(Cada\s+time\s+bate[^e]*escanteios)\s+e\s+(cada\s+time\s+recebe[^\n]*cart[aã]os)/i);
-      if (megaTeamTotalsMatch) {
-        const primeiraParte = megaTeamTotalsMatch[1].trim();
-        const segundaParte = megaTeamTotalsMatch[2].trim();
-        singleLine = `${primeiraParte} / ${segundaParte}`;
-      }
 
       // Em linhas únicas como "Recepções (Mais de/Menos de) - Devonta Smith - Under 4.5",
       // remover o prefixo que é só o rótulo de mercado para deixar o foco na seleção.
